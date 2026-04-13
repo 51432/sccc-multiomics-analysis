@@ -6,30 +6,30 @@
 
 本仓库主要包括以下内容：
 
-- `scripts/`：各类分析脚本
+- `pipeline/wgs_somatic/`：重构后的 WGS 体细胞突变流程（配置、预检、分阶段与整流程入口）
+- `somatic-mutation-analysis_bash_pipeline-main/`：历史 Bash 流程（保留用于兼容与结果复现）
 - `data/`：输入数据、整理后的数据及样本信息
 - `results/`：分析结果输出
 - `figures/`：图表及论文相关图片文件
 - `docs/`：分析说明、流程记录及补充文档
 - `notebooks/`：探索性分析笔记
 
-## 研究方向
+## WGS 流程重构说明
 
-本项目主要围绕以下内容展开：
+为了便于在新项目中复用，新增 `pipeline/wgs_somatic/`，核心能力包括：
 
-- 宫颈小细胞癌的多组学特征分析
-- 分子分型研究
-- 基因组、转录组及其他组学数据整合
-- 下游统计分析与可视化展示
+1. `config/`：路径与样本模板（含 repo 本地默认配置）。
+2. `validate_legacy_layout.sh`：运行前检查历史脚本是否齐全。
+3. `stages/`：分步骤执行入口（00–07）。
+4. `run_pipeline.sh`：支持按阶段区间批量运行。
+5. `bin/`：共享参数解析、配置加载、stage 映射与 dry-run 逻辑。
 
-## 目录结构示例
+快速开始：
 
-```text
-sccc-multiomics-analysis/
-├── README.md
-├── scripts/
-├── data/
-├── results/
-├── figures/
-├── docs/
-└── notebooks/
+```bash
+cp pipeline/wgs_somatic/config/paths.example.env pipeline/wgs_somatic/config/paths.env
+bash pipeline/wgs_somatic/validate_legacy_layout.sh --config pipeline/wgs_somatic/config/paths.env
+bash pipeline/wgs_somatic/run_pipeline.sh --config pipeline/wgs_somatic/config/paths.env --dry-run
+```
+
+详见：`pipeline/wgs_somatic/README.md` 与 `docs/wgs_pipeline_reorganization.md`。
