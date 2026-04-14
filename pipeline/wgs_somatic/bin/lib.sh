@@ -9,6 +9,22 @@ DEFAULT_CONFIG="${WGS_PIPELINE_DIR}/config/paths.env"
 REPO_CONFIG="${WGS_PIPELINE_DIR}/config/paths.repo.env"
 EXAMPLE_CONFIG="${WGS_PIPELINE_DIR}/config/paths.example.env"
 
+declare -A LEGACY_SCRIPT_STAGE_MAP=(
+  [00_export_pipeline_environment.sh]="00"
+  [02a_check_pairs.sh]="01"
+  [02b_align_and_sort_bam_to_ref.bwa.sh]="02"
+  [03_merge_bams.sambamba.sh]="03"
+  [04_markduplicates.sambamba.markdup.sh]="03"
+  [05_run_bqsr.gatk.BaseRecalibrator.sh]="03"
+  [06b_call_SNVs_and_indels.gatk.mutect2.sh]="04"
+  [06c_check_crosscontamination.gatk.CalculateContamination.sh]="05"
+  [06d_calc_f1r2.read_orientation.sh]="05"
+  [07_read_orientation.gatk.LearnReadOrientationModel.sh]="05"
+  [08_filter_somatic_var.gatk.FilterMutectCalls.sh]="05"
+  [09a_variant_annotation.annovar.sh]="06"
+  [10_run_analyses.signatures_and_TBM.sh]="07"
+)
+
 usage_common() {
   cat <<USAGE
 Usage: [--config FILE] [--dry-run]
@@ -126,6 +142,47 @@ run_cmd() {
   fi
 }
 
+legacy_stage_id_for_script() {
+  local script_name="$1"
+  echo "${LEGACY_SCRIPT_STAGE_MAP[${script_name}]:-unknown}"
+}
+
+is_stage_allowed() {
+  local stage_id="$1"
+  local allowed="${WGS_ALLOWED_STAGE_IDS:-}"
+
+  if [[ -z "${allowed}" ]]; then
+    return 0
+  fi
+
+  [[ " ${allowed} " == *" ${stage_id} "* ]]
+}
+
+legacy_qsub() {
+  local target_script=""
+  local arg
+  for arg in "$@"; do
+    if [[ "${arg}" == *.sh ]]; then
+      target_script="${arg##*/}"
+    fi
+  done
+
+  if [[ "${WGS_ENFORCE_STAGE_BOUNDS:-0}" == "1" && -n "${target_script}" ]]; then
+    local target_stage
+    target_stage="$(legacy_stage_id_for_script "${target_script}")"
+    if ! is_stage_allowed "${target_stage}"; then
+      echo "[WARN] Blocked qsub for downstream stage ${target_stage} (${target_script}) while enforcing stage bounds: ${WGS_ALLOWED_STAGE_IDS}" >&2
+      return 0
+    fi
+  fi
+
+  command qsub "$@"
+}
+
+export -f legacy_qsub
+export -f legacy_stage_id_for_script
+export -f is_stage_allowed
+
 run_legacy_stage() {
   local script_name="$1"
   local script_path="${LEGACY_PIPELINE_DIR}/${script_name}"
@@ -133,6 +190,18 @@ run_legacy_stage() {
   if [[ ! -f "${script_path}" ]]; then
     echo "[ERROR] Legacy stage missing: ${script_path}" >&2
     exit 1
+  fi
+
+  export pipeline_dir="${LEGACY_PIPELINE_DIR}"
+  export mode="${mode:-${MODE:-wgs}}"
+  export sample="${sample:-${SAMPLE:-}}"
+  export tumor="${tumor:-${TUMOR:-}}"
+  export normal="${normal:-${NORMAL:-}}"
+  export organism="${organism:-${ORGANISM:-hsapiens}}"
+  export genome="${genome:-${GENOME:-hg38}}"
+
+  if [[ "${WGS_ENFORCE_STAGE_BOUNDS:-0}" == "1" ]]; then
+    export BASH_ENV="${WGS_LIB_DIR}/legacy_runtime_env.sh"
   fi
 
   run_cmd bash "${script_path}"

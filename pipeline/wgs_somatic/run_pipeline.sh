@@ -63,6 +63,16 @@ if [[ $from_idx -gt $to_idx ]]; then
   exit 1
 fi
 
-for ((i=from_idx; i<=to_idx; i++)); do
-  bash "${RUN_STAGE_SCRIPT}" "${STAGES[$i]}" "${ARGS[@]}"
+range_len=$((to_idx - from_idx + 1))
+SELECTED_STAGES=("${STAGES[@]:from_idx:range_len}")
+ALLOWED_STAGE_IDS="${SELECTED_STAGES[*]}"
+ENFORCE_STAGE_BOUNDS=0
+if [[ "${FROM}" != "00" || "${TO}" != "07" ]]; then
+  ENFORCE_STAGE_BOUNDS=1
+fi
+
+for stage_id in "${SELECTED_STAGES[@]}"; do
+  WGS_ALLOWED_STAGE_IDS="${ALLOWED_STAGE_IDS}" \
+  WGS_ENFORCE_STAGE_BOUNDS="${ENFORCE_STAGE_BOUNDS}" \
+  bash "${RUN_STAGE_SCRIPT}" "${stage_id}" "${ARGS[@]}"
 done
