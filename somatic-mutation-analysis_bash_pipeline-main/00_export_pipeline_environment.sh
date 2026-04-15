@@ -6,9 +6,10 @@ export PERL5LIB="/hpf/largeprojects/tabori/shared/software/perl5/lib/perl5:${PER
 export PYTHONPATH="/hpf/largeprojects/tabori/shared/software/lib/python3.7:/hpf/largeprojects/tabori/shared/software/lib/python3.7/site-packages:/hpf/largeprojects/tabori/shared/software/lib/python3.7/dyn-lib:${PYTHONPATH}"
 
 # base dirs
-resources_dir=/hpf/largeprojects/tabori/shared/resources
-software_dir=/hpf/largeprojects/tabori/shared/software
-genomes=${resources_dir}/reference_genomes
+# 统一支持从外部配置覆盖路径：这样用户只需在起始配置文件里填一次，不需要每个 step 再改。
+resources_dir=${WGS_RESOURCES_DIR:-/hpf/largeprojects/tabori/shared/resources}
+software_dir=${WGS_SOFTWARE_DIR:-/hpf/largeprojects/tabori/shared/software}
+genomes=${WGS_REFERENCE_GENOMES_DIR:-${resources_dir}/reference_genomes}
 
 # 只保留 human/hg38 单一路径：本项目已固定为人类样本，不再维护多物种分支。
 organism="${1:-human}"
@@ -47,15 +48,15 @@ else
 fi
 
 # reference-independent locations
-export snpeff_jar=/hpf/tools/centos6/snpEff/4.11/snpEff.jar
-export snpeff_datadir=${resources_dir}/snpEff_data/4.11/data
-export vep_datadir=/hpf/tools/centos6/vep/cache102
+export snpeff_jar=${WGS_SNPEFF_JAR:-/hpf/tools/centos6/snpEff/4.11/snpEff.jar}
+export snpeff_datadir=${WGS_SNPEFF_DATA_DIR:-${resources_dir}/snpEff_data/4.11/data}
+export vep_datadir=${WGS_VEP_CACHE_DIR:-/hpf/tools/centos6/vep/cache102}
 export vep_species="homo_sapiens"
-export varscan_jar=/hpf/tools/centos6/varscan/2.3.8/VarScan.v2.3.8.jar
-export gatk_path=${software_dir}/gatk/gatk-4.2.3.0
-export funcotator_databases_s=${resources_dir}/funcotator_dataSources.v1.7.20200521s
-export funcotator_databases_g=${resources_dir}/funcotator_dataSources.v1.7.20200521g
-export annovar_db=${resources_dir}/humandb
+export varscan_jar=${WGS_VARSCAN_JAR:-/hpf/tools/centos6/varscan/2.3.8/VarScan.v2.3.8.jar}
+export gatk_path=${WGS_GATK_PATH:-${software_dir}/gatk/gatk-4.2.3.0}
+export funcotator_databases_s=${WGS_FUNCOTATOR_DB_S:-${resources_dir}/funcotator_dataSources.v1.7.20200521s}
+export funcotator_databases_g=${WGS_FUNCOTATOR_DB_G:-${resources_dir}/funcotator_dataSources.v1.7.20200521g}
+export annovar_db=${WGS_ANNOVAR_DB:-${resources_dir}/humandb}
 
 # functions
 

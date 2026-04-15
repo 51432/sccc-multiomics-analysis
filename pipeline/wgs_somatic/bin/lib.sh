@@ -131,6 +131,23 @@ load_config() {
       exit 1
     fi
   fi
+
+  # 在流程最开始统一校验并固定路径变量，避免每个 stage 单独再定义一遍。
+  local required_vars=(PROJECT_ROOT RAW_FASTQ_DIR REFERENCE_DIR OUTPUT_DIR)
+  local var_name
+  for var_name in "${required_vars[@]}"; do
+    if [[ -z "${!var_name:-}" ]]; then
+      echo "[ERROR] Missing required config var: ${var_name}" >&2
+      exit 1
+    fi
+  done
+
+  mkdir -p "${OUTPUT_DIR}"
+
+  export PROJECT_ROOT
+  export RAW_FASTQ_DIR
+  export REFERENCE_DIR
+  export OUTPUT_DIR
 }
 
 run_cmd() {
@@ -205,5 +222,14 @@ run_legacy_stage() {
     export BASH_ENV="${WGS_LIB_DIR}/legacy_runtime_env.sh"
   fi
 
-  run_cmd bash "${script_path}"
+  # 统一从 OUTPUT_DIR 执行所有 stage：输出路径只在配置入口设置一次。
+  if [[ "${DRY_RUN}" == "1" ]]; then
+    echo "[DRY-RUN] (cd ${OUTPUT_DIR} && bash ${script_path})"
+  else
+    echo "[RUN] (cd ${OUTPUT_DIR} && bash ${script_path})"
+    (
+      cd "${OUTPUT_DIR}"
+      bash "${script_path}"
+    )
+  fi
 }

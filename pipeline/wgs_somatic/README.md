@@ -48,6 +48,9 @@ pipeline/wgs_somatic/
   3. `config/paths.example.env` (warning fallback)
 
 For your own project, create `config/paths.env` from `paths.example.env`.
+All user-provided paths (input/reference/tools/output) are now expected to be
+configured there once; stages reuse the same environment and run under
+`OUTPUT_DIR`.
 
 ## Quick start
 
