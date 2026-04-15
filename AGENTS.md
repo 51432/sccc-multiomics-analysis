@@ -26,3 +26,14 @@ This repository is used for bioinformatics analysis related to cervical small ce
 - Group scripts by analysis stage.
 - Make the pipeline easier to adapt to a new project environment.
 - Add documentation when introducing new wrappers, configs, or directory structures.
+
+# Editing continuity rules
+- When a pipeline directory or scaffold has already been created in this repository, continue editing that existing directory instead of creating a new top-level folder, duplicate scaffold, or parallel pipeline implementation.
+
+- Do not create a new pipeline folder merely to apply revisions.
+- Prefer modifying the existing files in place.
+- If a structural change is necessary, explain why before doing it.
+- Avoid duplicating wrappers, configs, or README files unless explicitly requested.
+
+- If previous Codex changes already exist in the repository or in an open PR branch, continue from that implementation rather than rebuilding the same pipeline in another location.
+
