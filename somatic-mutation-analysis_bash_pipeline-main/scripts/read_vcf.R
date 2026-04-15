@@ -38,7 +38,7 @@ scan_vcf_to_maf <- function(vcf_file){
 }
 
 
-read_vcf <- function (vcfs, samples = NULL, genome_build = c("hg19", "hg38", "mm10", "mm9"), keep_only_pass = FALSE, verbose = TRUE){
+read_vcf <- function (vcfs, samples = NULL, genome_build = c("hg38"), keep_only_pass = FALSE, verbose = TRUE){
   genome_build <- match.arg(genome_build)
   # maf header
   vcf = scan(gzfile(vcf_with_filter[1]), what=character(), sep="\n", quiet=T)

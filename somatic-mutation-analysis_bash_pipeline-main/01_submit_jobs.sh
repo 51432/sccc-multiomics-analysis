@@ -38,16 +38,14 @@ Optional arguments:
                                   to the reverse reads (R2.fastq.gz).
                                   Default: file_list.csv
 
---organism, -o          STR       Organismal data source. Needed to adjust the genome
-                                  reference files. Options are: human, mouse
-                                  Default: human
+--organism, -o          STR       仅保留向后兼容参数，固定为 human。
+                                  Default: human（固定）
 
 --append, -a            BOOL      Flag to append to current run.
                                   Default: false
 
---reference, -r         STR       Provide a the version of the reference to use.
-                                  Default: hg38 (human), mm10 (mouse)
-                                  Options: hg38, mm10, b37 (need to add those from other organisms)
+--reference, -r         STR       仅保留向后兼容参数，固定为 hg38。
+                                  Default: hg38（固定）
 
 --skip-alignment, -s    BOOL      Flag to skip the alignment steps. Go directly to
                                   variant calling.
@@ -75,7 +73,7 @@ Optional arguments:
 
 --select-pon            STR       Name of the PoN VCF tu use (not the whole path!). By default, GATK will use
                                   a predefined PoN (in script 00) if one is not specified.
-                                  Mostly used for mouse data.
+                                  Used for custom human PoN selection.
                                   Default: None
 
 --help, -h              BOOL      Print this help message.
@@ -84,9 +82,6 @@ Example commands:
 
 # run whole exome data on human genome hg38
 run_pipeline -m wes
-
-# run whole exome data on mouse genome (default to mm10)
-run_pipeline -m wes -o mouse
 
 # run a whole genome sequencing analysis on human data
 run_pipeline -m wgs
@@ -109,7 +104,7 @@ run_pipeline -m wes -a --skip-alignment
 run_pipeline -m wes --create-pon
 
 # Specify a different PoN file. The PoN file needs to be in
-run_pipeline -m wes -o mouse --select-pon my_pons_for_exp1.vcf.gz
+run_pipeline -m wes --select-pon my_pons_for_exp1.vcf.gz
 
 "
 export help_message
@@ -143,14 +138,18 @@ read_and_export_arguments(){
                 export mode=${args[$(( i + 1 ))]}
             elif [[ "${args[$i]}" == "-o" || "${args[$i]}" == "--organism" ]]; then
                 export organism=${args[$(( i + 1 ))]}
-                # export defaults
-                if [[ "${organism}" == "mouse" ]]; then
-                    export genome="mm10"
+                # 仅保留参数兼容：流程已固定为 human，mouse 分支已删除。
+                if [[ "${organism}" != "human" ]]; then
+                    die "Error: this pipeline now supports only human samples (-o human)." && return 1
                 fi
             elif [[ "${args[$i]}" == "-f" || "${args[$i]}" == "--file_list" ]]; then
                 export file_list=${args[$(( i + 1 ))]}
             elif [[ "${args[$i]}" == "-r" || "${args[$i]}" == "--reference" ]]; then
                 export genome=${args[$(( i + 1 ))]}
+                # 仅保留参数兼容：流程已固定为 hg38，其它 reference 分支已删除。
+                if [[ "${genome}" != "hg38" ]]; then
+                    die "Error: this pipeline now supports only hg38 reference (-r hg38)." && return 1
+                fi
             elif [[ "${args[$i]}" == "-p" || "${args[$i]}" == "--pipeline" ]]; then
                 export pipeline_dir=${args[$(( i + 1 ))]}
             elif [[ "${args[$i]}" == "-a" || "${args[$i]}" == "--append" ]]; then

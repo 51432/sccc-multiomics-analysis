@@ -197,8 +197,9 @@ run_legacy_stage() {
   export sample="${sample:-${SAMPLE:-}}"
   export tumor="${tumor:-${TUMOR:-}}"
   export normal="${normal:-${NORMAL:-}}"
-  export organism="${organism:-${ORGANISM:-hsapiens}}"
-  export genome="${genome:-${GENOME:-hg38}}"
+  # 统一固定为 human/hg38：该仓库的 WGS 实际使用场景已不再包含其它物种。
+  export organism="human"
+  export genome="hg38"
 
   if [[ "${WGS_ENFORCE_STAGE_BOUNDS:-0}" == "1" ]]; then
     export BASH_ENV="${WGS_LIB_DIR}/legacy_runtime_env.sh"

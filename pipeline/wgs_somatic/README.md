@@ -3,6 +3,10 @@
 This directory provides a cleaner, project-oriented wrapper around the legacy
 bash pipeline kept in `somatic-mutation-analysis_bash_pipeline-main/`.
 
+> Scope note: this scaffold is now standardized for **human hg38 only**.
+> Legacy multi-species paths (e.g., mouse/mm10) are intentionally removed from
+> active execution defaults to keep the pipeline short and maintainable.
+
 ## Goals
 
 - Keep legacy code intact and reproducible.

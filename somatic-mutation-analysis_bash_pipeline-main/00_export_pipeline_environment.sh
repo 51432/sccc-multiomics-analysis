@@ -10,226 +10,52 @@ resources_dir=/hpf/largeprojects/tabori/shared/resources
 software_dir=/hpf/largeprojects/tabori/shared/software
 genomes=${resources_dir}/reference_genomes
 
-# set hg38 as default
-if [[ -z $1 ]]; then
-    # path to human reference genome assembly v38
-    export reference=${genomes}/hg38/gatk_bundle/Homo_sapiens_assembly38.fasta
-    # path to reference dict
-    export reference_dict=${genomes}/hg38/gatk_bundle/Homo_sapiens_assembly38.dict
-    # path to WES target intervals
-    export intervals=${genomes}/hg38/AgilentSureSelectV5/SureSelect_All_Exon_50mb_with_annotation_hg38_liftover_BED.removeChrUn.interval_list
-    # path to WES tergets in bed format
-    export intervals_bed=${genomes}/hg38/AgilentSureSelectV5/SureSelect_All_Exon_50mb_with_annotation_hg38_liftover_BED.removeChrUn.bed
-    # path to vcf file with known SNPs from the 1000 genomes project
-    export knownsites_snps=${genomes}/hg38/gatk_bundle/1000G_phase1.snps.high_confidence.hg38.vcf.gz
-    # same but biallelic only
-    export knownsites_snps_biallelic=${genomes}/hg38/gatk_bundle/1000G_phase1.snps.high_confidence.biallelic.hg38.vcf.gz
-    # path to vcf file with known indels from the 1000 genomes project
-    export knownsites_indels=${genomes}/hg38/gatk_bundle/Mills_and_1000G_gold_standard.indels.hg38.vcf.gz
-    # path to WES intervals for running MuTect2
-    export bed30intervals=${genomes}/hg38/AgilentSureSelectV5/SureSelect_All_Exon_50mb_with_annotation_hg38_liftover_BED.removeChrUn.30-bed-files/
-    # path to gnomad resource
-    export gnomad_resource=${genomes}/hg38/gatk_bundle/af-only-gnomad.hg38.vcf.gz
-    # path to gatk's panel of normals vcf
-    export gatk_pon=${genomes}/hg38/gatk_bundle/1000g_pon.hg38.vcf.gz
-    export gatk_pon_location=${genomes}/${2}/gatk_bundle/PoNs
-    # reference independent locations:
-    # path to snpEff jar file
-    export snpeff_jar=/hpf/tools/centos6/snpEff/4.11/snpEff.jar
-    # path to snpEff data dir
-    export snpeff_datadir=${resources_dir}/snpEff_data/4.11/data
-    # path to vep data dir
-    export vep_datadir=/hpf/tools/centos6/vep/cache102
-    export vep_species="homo_sapiens"
-    # path to varscan jar file
-    export varscan_jar=/hpf/tools/centos6/varscan/2.3.8/VarScan.v2.3.8.jar
-    # point to recent version of gatk
-    export gatk_path=${software_dir}/gatk/gatk-4.2.3.0
-    # funcotator data resources
-    export funcotator_databases_s=${resources_dir}/funcotator_dataSources.v1.7.20200521s
-    export funcotator_databases_g=${resources_dir}/funcotator_dataSources.v1.7.20200521g
-    # path to annovar database
-    export annovar_db=${resources_dir}/humandb
-else
-    # test organism
-    if [[ ${1} == "human" ]]; then
-        # test reference version
-        if [[ ${2} == "hg38" ]]; then
-            # path to human reference genome assembly v38
-            export reference=${genomes}/${2}/gatk_bundle/Homo_sapiens_assembly38.fasta
-            # path to reference dict
-            export reference_dict=${genomes}/${2}/gatk_bundle/Homo_sapiens_assembly38.dict
-            # path to vcf file with known SNPs from the 1000 genomes project
-            export knownsites_snps=${genomes}/${2}/gatk_bundle/1000G_phase1.snps.high_confidence.hg38.vcf.gz
-            # same but biallelic only
-            export knownsites_snps_biallelic=${genomes}/hg38/gatk_bundle/1000G_phase1.snps.high_confidence.biallelic.hg38.vcf.gz
-            # path to vcf file with known indels from the 1000 genomes project
-            export knownsites_indels=${genomes}/${2}/gatk_bundle/Mills_and_1000G_gold_standard.indels.hg38.vcf.gz
-            # path to gnomad resource
-            export gnomad_resource=${genomes}/${2}/gatk_bundle/af-only-gnomad.hg38.vcf.gz
-            # path to gatk's panel of normals vcf
-            export gatk_pon=${genomes}/${2}/gatk_bundle/1000g_pon.hg38.vcf.gz
-            export gatk_pon_location=${genomes}/${2}/gatk_bundle/PoNs
-            # test mode
-            if [[ ${3} == "wes" ]]; then
-                # path to WES target intervals
-                export intervals=${genomes}/${2}/AgilentSureSelectV5/SureSelect_All_Exon_50mb_with_annotation_hg38_liftover_BED.removeChrUn.interval_list
-                # path to WES tergets in bed format
-                export intervals_bed=${genomes}/${2}/AgilentSureSelectV5/SureSelect_All_Exon_50mb_with_annotation_hg38_liftover_BED.removeChrUn.bed
-                # path to WES intervals for running MuTect2
-                export bed30intervals=${genomes}/${2}/AgilentSureSelectV5/SureSelect_All_Exon_50mb_with_annotation_hg38_liftover_BED.removeChrUn.30-bed-files/
-            else
-                # path to WES target intervals
-                export intervals=${genomes}/${2}/gatk_bundle/wgs_calling_regions.hg38.interval_list
-                # path to WES tergets in bed format
-                export intervals_bed=${genomes}/${2}/gatk_bundle/wgs_calling_regions.hg38.bed
-                # path to WES intervals for running MuTect2
-                export bed30intervals=${genomes}/${2}/gatk_bundle/wgs_calling_regions.hg38.30-bed-files/
-            fi
-            # reference independent locations:
-            # path to snpEff jar file
-            export snpeff_jar=/hpf/tools/centos6/snpEff/4.11/snpEff.jar
-            # path to snpEff data dir
-            export snpeff_datadir=/hpf/largeprojects/tabori/shared/resources/snpEff_data/4.11/data
-            # path to varscan jar file
-            export varscan_jar=/hpf/tools/centos6/varscan/2.3.8/VarScan.v2.3.8.jar
-            # point to recent version of gatk
-            export gatk_path=/hpf/largeprojects/tabori/shared/software/gatk/gatk-4.2.3.0
-            # funcotator data resources
-            export funcotator_databases_s=${resources_dir}/funcotator_dataSources.v1.7.20200521s
-            export funcotator_databases_g=${resources_dir}/funcotator_dataSources.v1.7.20200521g
-            # path to annovar database
-            export annovar_db=${resources_dir}/humandb
-        elif [[ ${2} == "hs37d5" ]]; then
-            # path to human reference genome assembly hs37d5
-            export reference=${genomes}/${2}/gatk_bundle/Homo_sapiens_assembly38.fasta
-            # path to vcf file with known SNPs from the 1000 genomes project
-            export knownsites_snps=${genomes}/${2}/gatk_bundle/1000G_phase1.snps.high_confidence.hg38.vcf
-            # path to vcf file with known indels from the 1000 genomes project
-            export knownsites_indels=${genomes}/${2}/gatk_bundle/Mills_and_1000G_gold_standard.indels.hg38.vcf
-            # path to gnomad resource
-            export gnomad_resource=${genomes}/${2}/gatk_bundle/af-only-gnomad.hg38.vcf.gz
-            # path to gatk's panel of normals vcf
-            export gatk_pon=${genomes}/${2}/gatk_bundle/1000g_pon.hg38.vcf.gz
-            # test mode
-            if [[ ${3} == "wes" ]]; then
-                # path to WES target intervals
-                export intervals=${genomes}/${2}/AgilentSureSelectV5/S04380110_Covered.edited.LiftOverToHg38.interval_list
-                # path to WES tergets in bed format
-                export intervals_bed=${genomes}/${2}/AgilentSureSelectV5/S04380110_Covered.edited.LiftOverToHg38.bed
-                # path to WES intervals for running MuTect2
-                export bed30intervals=${genomes}/${2}/AgilentSureSelectV5/S04380110_Covered.edited.LiftOverToHg38.30-bed-files/
-            else
-                # path to WES target intervals
-                export intervals=${genomes}/${2}/gatk_bundle/wgs_calling_regions.hg38.interval_list
-                # path to WES tergets in bed format
-                export intervals_bed=${genomes}/${2}/gatk_bundle/wgs_calling_regions.hg38.bed
-                # path to WES intervals for running MuTect2
-                export bed30intervals=${genomes}/${2}/gatk_bundle/wgs_calling_regions.hg38.30-bed-files/
-            fi
-        elif [[ ${2} == "b37" ]]; then
-              # path to human reference genome assembly hs37d5
-              export reference=${genomes}/${2}/gatk_bundle/Homo_sapiens_assembly38.fasta
-              # path to vcf file with known SNPs from the 1000 genomes project
-              export knownsites_snps=${genomes}/${2}/gatk_bundle/1000G_phase1.snps.high_confidence.hg38.vcf
-              # path to vcf file with known indels from the 1000 genomes project
-              export knownsites_indels=${genomes}/${2}/gatk_bundle/Mills_and_1000G_gold_standard.indels.hg38.vcf
-              # path to gnomad resource
-              export gnomad_resource=${genomes}/${2}/gatk_bundle/af-only-gnomad.hg38.vcf.gz
-              # path to gatk's panel of normals vcf
-              export gatk_pon=${genomes}/${2}/gatk_bundle/1000g_pon.hg38.vcf.gz
-              # test mode
-              if [[ ${3} == "wes" ]]; then
-                  # path to WES target intervals
-                  export intervals=${genomes}/${2}/AgilentSureSelectV5/S04380110_Covered.edited.LiftOverToHg38.interval_list
-                  # path to WES tergets in bed format
-                  export intervals_bed=${genomes}/${2}/AgilentSureSelectV5/S04380110_Covered.edited.LiftOverToHg38.bed
-                  # path to WES intervals for running MuTect2
-                  export bed30intervals=${genomes}/${2}/AgilentSureSelectV5/S04380110_Covered.edited.LiftOverToHg38.30-bed-files/
-              else
-                  # path to WES target intervals
-                  export intervals=${genomes}/${2}/gatk_bundle/wgs_calling_regions.hg38.interval_list
-                  # path to WES tergets in bed format
-                  export intervals_bed=${genomes}/${2}/gatk_bundle/wgs_calling_regions.hg38.bed
-                  # path to WES intervals for running MuTect2
-                  export bed30intervals=${genomes}/${2}/gatk_bundle/wgs_calling_regions.hg38.30-bed-files/
-              fi
-              # reference independent locations:
-              # path to snpEff jar file
-              export snpeff_jar=/hpf/tools/centos6/snpEff/4.11/snpEff.jar
-              # path to snpEff data dir
-              export snpeff_datadir=${resources_dir}/snpEff_data/4.11/data
-              # path to varscan jar file
-              export varscan_jar=/hpf/tools/centos6/varscan/2.3.8/VarScan.v2.3.8.jar
-              # point to recent version of gatk
-              export gatk_path=${software_dir}/gatk/gatk-4.2.3.0
-              # funcotator data resources
-              export funcotator_databases_s=${resources_dir}/funcotator_dataSources.v1.7.20200521s
-              export funcotator_databases_g=${resources_dir}/funcotator_dataSources.v1.7.20200521g
-              # path to annovar database
-              export annovar_db=${resources_dir}/humandb
-        # more refs
-        else
-            echo "Unknown or reference no databased: ${2}"
-            echo "See options using the -h flag."
-            return 1
-        fi
-    elif [[ ${1} == "mouse" ]]; then
-        if [[ ${2} == "mm10" ]]; then # need editing
-            # path to mouse reference genome assembly mm10 ... with "chr"
-            export reference=${genomes}/${2}/ucsc/Mus_musculus.mm10.fa
-            # path to vcf file with known SNPs from dbsnp v150
-            export knownsites_snps=${genomes}/${2}/ucsc/dbsnp_v150.snps-biallelic.mm10.vcf.gz
-            # path to vcf file with known indels from the 1000 genomes project
-            export knownsites_indels=${genomes}/${2}/ucsc/mgp.v5.indels.pass.mm10.vcf.gz
-            # path to gnomad resource
-            export gnomad_resource=null
-            # path to gatk's panel of normals vcf
-            export gatk_pon=${genomes}/${2}/ucsc/PoNs/pon.5_samples.2022-06-16.vcf.gz
-            export gatk_pon_location=${genomes}/${2}/ucsc/PoNs
-            # test mode
-            if [[ ${3} == "wes" ]]; then
-                # path to WES target intervals
-                export intervals=${genomes}/${2}/AgilentSureSelectV1/S0276129_Padded.sorted_noMT.LiftOverToMm10.edited.interval_list
-                # path to WES tergets in bed format
-                export intervals_bed=${genomes}/${2}/AgilentSureSelectV1/S0276129_Padded.sorted_noMT.LiftOverToMm10.edited.bed
-                # path to WES intervals for running MuTect2
-                export bed30intervals=${genomes}/${2}/AgilentSureSelectV1/S0276129_Padded.sorted_noMT.LiftOverToMm10.edited.30-bed-files/
-            else
-                # path to WES target intervals
-                export intervals=${genomes}/${2}/ucsc/wgs_callable_nonN-LC_regions.interval_list
-                # path to WES tergets in bed format
-                export intervals_bed=${genomes}/${2}/ucsc/wgs_callable_nonN-LC_regions.bed
-                # path to WES intervals for running MuTect2
-                export bed30intervals=${genomes}/${2}/ucsc/wgs_callable_nonN-LC_regions.30-bed-files/
-            fi
-            # reference independent locations:
-            # path to snpEff jar file
-            export snpeff_jar=/hpf/tools/centos6/snpEff/4.11/snpEff.jar
-            # path to snpEff data dir
-            export snpeff_datadir=${resources_dir}/snpEff_data/4.11/data
-            # path to varscan jar file
-            export varscan_jar=/hpf/tools/centos6/varscan/2.3.8/VarScan.v2.3.8.jar
-            # point to recent version of gatk
-            export gatk_path=${software_dir}/gatk/gatk-4.2.3.0
-            # funcotator data resources
-            #export funcotator_databases_s=${resources_dir}/funcotator_dataSources.v1.7.20200521s
-            #export funcotator_databases_g=${resources_dir}/funcotator_dataSources.v1.7.20200521g
-            # path to annovar database
-            #export annovar_db=${resources_dir}/mousedb
-        else
-            echo "Unknown or reference no databased: ${2}"
-            echo "See options using the -h flag."
-            return 1
-        fi
-    else
-        echo "Unknown or organism not databased: ${1}"
-        echo "See options using the -h flag."
-        return 1
-    fi
+# 只保留 human/hg38 单一路径：本项目已固定为人类样本，不再维护多物种分支。
+organism="${1:-human}"
+genome="${2:-hg38}"
+mode="${3:-wgs}"
+
+# 这里直接阻断旧参数，避免误用 mouse/mm10 等已删除路径。
+if [[ "${organism}" != "human" ]]; then
+    echo "Error: this pipeline now supports only human samples (organism=human)."
+    return 1
+fi
+if [[ "${genome}" != "hg38" ]]; then
+    echo "Error: this pipeline now supports only hg38 reference (genome=hg38)."
+    return 1
 fi
 
+# 人类 hg38 公共资源
+export reference=${genomes}/hg38/gatk_bundle/Homo_sapiens_assembly38.fasta
+export reference_dict=${genomes}/hg38/gatk_bundle/Homo_sapiens_assembly38.dict
+export knownsites_snps=${genomes}/hg38/gatk_bundle/1000G_phase1.snps.high_confidence.hg38.vcf.gz
+export knownsites_snps_biallelic=${genomes}/hg38/gatk_bundle/1000G_phase1.snps.high_confidence.biallelic.hg38.vcf.gz
+export knownsites_indels=${genomes}/hg38/gatk_bundle/Mills_and_1000G_gold_standard.indels.hg38.vcf.gz
+export gnomad_resource=${genomes}/hg38/gatk_bundle/af-only-gnomad.hg38.vcf.gz
+export gatk_pon=${genomes}/hg38/gatk_bundle/1000g_pon.hg38.vcf.gz
+export gatk_pon_location=${genomes}/hg38/gatk_bundle/PoNs
 
+# WES/WGS 仍然是核心流程分支，因此保留 mode 判断。
+if [[ "${mode}" == "wes" ]]; then
+    export intervals=${genomes}/hg38/AgilentSureSelectV5/SureSelect_All_Exon_50mb_with_annotation_hg38_liftover_BED.removeChrUn.interval_list
+    export intervals_bed=${genomes}/hg38/AgilentSureSelectV5/SureSelect_All_Exon_50mb_with_annotation_hg38_liftover_BED.removeChrUn.bed
+    export bed30intervals=${genomes}/hg38/AgilentSureSelectV5/SureSelect_All_Exon_50mb_with_annotation_hg38_liftover_BED.removeChrUn.30-bed-files/
+else
+    export intervals=${genomes}/hg38/gatk_bundle/wgs_calling_regions.hg38.interval_list
+    export intervals_bed=${genomes}/hg38/gatk_bundle/wgs_calling_regions.hg38.bed
+    export bed30intervals=${genomes}/hg38/gatk_bundle/wgs_calling_regions.hg38.30-bed-files/
+fi
+
+# reference-independent locations
+export snpeff_jar=/hpf/tools/centos6/snpEff/4.11/snpEff.jar
+export snpeff_datadir=${resources_dir}/snpEff_data/4.11/data
+export vep_datadir=/hpf/tools/centos6/vep/cache102
+export vep_species="homo_sapiens"
+export varscan_jar=/hpf/tools/centos6/varscan/2.3.8/VarScan.v2.3.8.jar
+export gatk_path=${software_dir}/gatk/gatk-4.2.3.0
+export funcotator_databases_s=${resources_dir}/funcotator_dataSources.v1.7.20200521s
+export funcotator_databases_g=${resources_dir}/funcotator_dataSources.v1.7.20200521g
+export annovar_db=${resources_dir}/humandb
 
 # functions
 
@@ -264,12 +90,9 @@ get_read_group_info(){
     ID="${head_split[1]}-${head_split[3]}" # merge run id with lane id
     PU=${head_split[2]} # flowcell id
     BC=${head_split[10]} # barcode ID
-    # build read group string
-    #RG="@RG\\\tID:${ID}\\\tSM:${SM}\\\tLB:${BC}\\\tPL:${PL}\\\tBC:${BC}\\\tPU:${PU}\\\tPM:${PM}"
     RG="@RG\\tID:${ID}\\tSM:${SM}\\tLB:${BC}\\tPL:${PL}\\tBC:${BC}\\tPU:${PU}\\tPM:${PM}"
   else
     ID=1 # run id
-    #RG="@RG\\\tID:${ID}\\\tSM:${SM}\\\tPL:${PL}"
     RG="@RG\\tID:${ID}\\tSM:${SM}\\tPL:${PL}"
   fi
   echo "$RG"

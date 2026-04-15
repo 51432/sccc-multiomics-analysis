@@ -33,3 +33,7 @@ bash pipeline/wgs_somatic/run_pipeline.sh --config pipeline/wgs_somatic/config/p
 ```
 
 详见：`pipeline/wgs_somatic/README.md` 与 `docs/wgs_pipeline_reorganization.md`。
+
+## 当前物种范围说明（重要）
+
+WGS pipeline 已统一简化为**仅支持人类样本（human/hg38）**。为降低维护成本，历史 `mouse/mm10` 及其它非人类分支逻辑已在主流程中清理，不再作为可选路径保留。

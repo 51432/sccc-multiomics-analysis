@@ -23,12 +23,11 @@ vcfpath = args[3]
 organism = args[4]
 reference = args[5]
 
-# ref genome
-if (organism == "human"){
-  ref_genome = paste0("BSgenome.Hsapiens.UCSC.", reference)
-} else if (organism == "mouse"){
-  ref_genome = paste0("BSgenome.Mmusculus.UCSC.", reference)
+# 删除 mouse/mm10 路径：当前流程固定为 human/hg38。
+if (organism != "human" | reference != "hg38"){
+  stop("This pipeline now supports only human/hg38.")
 }
+ref_genome = "BSgenome.Hsapiens.UCSC.hg38"
 
 # get COSMIC signature database
 sig_loc = paste0("/hpf/largeprojects/tabori/shared/resources/cosmic_v3.2/",reference,"/cosmic_db_v3.2_signature_matrix.txt")

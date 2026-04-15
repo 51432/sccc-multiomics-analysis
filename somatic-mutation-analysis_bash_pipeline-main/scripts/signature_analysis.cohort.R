@@ -6,7 +6,6 @@ library(sigminer)
 library(maftools)
 library(BSgenome.Hsapiens.UCSC.hg19)
 library(BSgenome.Hsapiens.UCSC.hg38)
-library(BSgenome.Mmusculus.UCSC.mm10)
 library(ggplot2)
 library(ggrepel)
 library(dplyr)
@@ -22,7 +21,7 @@ read_args = function(){
   # options:
   # ** required **
   # -m/--mode wes | wgs
-  # -o/--organism human | mouse
+  # -o/--organism 仅兼容保留，固定为 human
   #
   # at least one of the following (at least 3 indexed VCF files)
   # sample1.vcf.gz sample2.vcf.gz sample3.vcf.gz ... [ sampleX.vcf.gz ]
@@ -32,7 +31,6 @@ read_args = function(){
   help_message="Examples:
 Rscript signature_analysis.cohort.R --mode wes --organism human -d vcf
 Rscript signature_analysis.cohort.R --mode wgs --organism human -d vcf
-Rscript signature_analysis.cohort.R --mode wes --organism mouse vcf/*mutect2.all.Somatic.annotated-snpeff.wes.vcf.gz
 "
   #
   args = base::commandArgs(trailingOnly = TRUE)
@@ -55,6 +53,9 @@ Rscript signature_analysis.cohort.R --mode wes --organism mouse vcf/*mutect2.all
   if (!(exists("data_type") & exists("organism"))){
     stop(paste("Error: --mode or --organism options missing\n", help_message, sep="\n"))
   }
+  if (organism != "human"){
+    stop("This pipeline now supports only human samples (organism=human).")
+  }
   if (length(args) < 6){
     stop(paste("Error: not enough arguments\n", help_message, sep="\n"))
   }
@@ -73,21 +74,14 @@ Rscript signature_analysis.cohort.R --mode wes --organism mouse vcf/*mutect2.all
   res$data_type = data_type
   res$organism = organism
   # define db_type for sigminer
-  if (organism == "human"){
-    if (data_type == "wes"){
-      res$db_type="human-exome"
-    } else {
-      res$db_type="human-genome"
-    }
-    res$sig_db = "latest_SBS_GRCh38"
-    res$ref_genome = "BSgenome.Hsapiens.UCSC.hg38"
-    res$cosmic_exdata = "COSMIC_v3.2_SBS_GRCh38.rds"
-  } else if (organism == "mouse"){
-    res$db_type=""
-    res$sig_db = "latest_SBS_mm10"
-    res$ref_genome = "BSgenome.Mmusculus.UCSC.mm10"
-    res$cosmic_exdata = "COSMIC_v3.2_SBS_mm10.rds"
+  if (data_type == "wes"){
+    res$db_type="human-exome"
+  } else {
+    res$db_type="human-genome"
   }
+  res$sig_db = "latest_SBS_GRCh38"
+  res$ref_genome = "BSgenome.Hsapiens.UCSC.hg38"
+  res$cosmic_exdata = "COSMIC_v3.2_SBS_GRCh38.rds"
   # check VCF files
   if (!is.null(res$files)){
     res$vcffiles = res$files[ grep("vcf.gz$", res$files) ]

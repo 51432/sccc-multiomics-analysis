@@ -4,9 +4,7 @@
 
 library(sigminer)
 library(maftools)
-library(BSgenome.Hsapiens.UCSC.hg19)
 library(BSgenome.Hsapiens.UCSC.hg38)
-library(BSgenome.Mmusculus.UCSC.mm10)
 library(ggplot2)
 library(ggrepel)
 library(dplyr)
@@ -27,22 +25,18 @@ sample_name = args[2]
 organism = args[3]
 dest = args[4]
 
-# define db_type for sigminer
-if (organism == "human"){
-  if (data_type == "wes"){
-    db_type="human-exome"
-  } else {
-    db_type="human-genome"
-  }
-  sig_db = "latest_SBS_GRCh38"
-  ref_genome = "BSgenome.Hsapiens.UCSC.hg38"
-  cosmic_exdata = "COSMIC_v3.2_SBS_GRCh38.rds"
-} else if (organism == "mouse"){
-  db_type=""
-  sig_db = "latest_SBS_mm10"
-  ref_genome = "BSgenome.Mmusculus.UCSC.mm10"
-  cosmic_exdata = "COSMIC_v3.2_SBS_mm10.rds"
+# 删除 mouse/mm10 分支：当前 WGS 流程只服务 human/hg38。
+if (organism != "human"){
+  stop("This pipeline now supports only human samples (organism=human).")
 }
+if (data_type == "wes"){
+  db_type="human-exome"
+} else {
+  db_type="human-genome"
+}
+sig_db = "latest_SBS_GRCh38"
+ref_genome = "BSgenome.Hsapiens.UCSC.hg38"
+cosmic_exdata = "COSMIC_v3.2_SBS_GRCh38.rds"
 
 # tumor - normal
 TUMOR = sub("__.*","",sample_name)
@@ -95,31 +89,21 @@ mt_sig_bayes_sbs_96 <- sig_unify_extract(
   approach = "bayes_nmf"
 )
 
-# match signatures using cosine similarity COSMIC v3
-if (db_type == ""){
-  matched_mt_sig_sbs_96 <- get_sig_similarity(
-    mt_sig_bayes_sbs_96,
-    sig_db=sig_db
-  )
-} else {
-  matched_mt_sig_sbs_96 <- get_sig_similarity(
-    mt_sig_bayes_sbs_96,
-    sig_db=sig_db,
-    db_type=db_type
-  )
-}
+# human 固定路径下 db_type 恒定有效，删除无意义分支。
+matched_mt_sig_sbs_96 <- get_sig_similarity(
+  mt_sig_bayes_sbs_96,
+  sig_db=sig_db,
+  db_type=db_type
+)
 
-# match signatures using cosine similarity legacy COSMIC v2
-if (organism == "human"){
-  matched_mt_sig_legacy_30 <- get_sig_similarity(
-    mt_sig_bayes_sbs_96,
-    sig_db="legacy",
-    db_type=db_type
-  )
-  # consolidate bNMF analyses
-  etio2 = matched_mt_sig_legacy_30$aetiology_db[[1]]
-  names(etio2) = colnames(matched_mt_sig_legacy_30$similarity)[order(as.numeric(sub("COSMIC_","",colnames(matched_mt_sig_legacy_30$similarity))))]
-}
+# 固定人类后，legacy v2 结果始终可计算，直接走单一路径。
+matched_mt_sig_legacy_30 <- get_sig_similarity(
+  mt_sig_bayes_sbs_96,
+  sig_db="legacy",
+  db_type=db_type
+)
+etio2 = matched_mt_sig_legacy_30$aetiology_db[[1]]
+names(etio2) = colnames(matched_mt_sig_legacy_30$similarity)[order(as.numeric(sub("COSMIC_","",colnames(matched_mt_sig_legacy_30$similarity))))]
 
 # cosmic 2
 # bnmf_cosmic2  = as.data.frame(matched_mt_sig_legacy_30$similarity) %>%
@@ -148,40 +132,22 @@ cosmic_data = readRDS(system.file("extdata", cosmic_exdata, package = "sigminer"
 # set threshold for matched signatures
 #sig_threshold = 0.01
 
-# fit linear decomposition on latest COSMIC db v3.2
-if (db_type == ""){
-  linear_decomp_mt_sig_sbs_96 <- sig_fit(catalogue_matrix=mt_tally$all_matrices$SBS_96 %>% t(),
-                                            sig=mt_sig_bayes_sbs_96$Signature,
-                                            sig_index = "ALL",
-                                            method="NNLS",
-                                            type="relative",
-                                            auto_reduce=TRUE,
-                                            sig_db=sig_db)
-  linear_decomp_mt_sig_legacy_30 <- sig_fit(catalogue_matrix=mt_tally$all_matrices$SBS_96 %>% t(),
-                                            sig=mt_sig_bayes_sbs_96$Signature,
-                                            sig_index = "ALL",
-                                            method="NNLS",
-                                            type="relative",
-                                            sig_db = "legacy")
-} else {
-  linear_decomp_mt_sig_sbs_96 <- sig_fit(catalogue_matrix=mt_tally$all_matrices$SBS_96 %>% t(),
-                                              sig=mt_sig_bayes_sbs_96$Signature,
-                                              sig_index = "ALL",
-                                              db_type=db_type,
-                                              method="NNLS",
-                                              type="relative",
-                                              sig_db=sig_db)
-}
+# fixed human/hg38：简化为单一路径分解。
+linear_decomp_mt_sig_sbs_96 <- sig_fit(catalogue_matrix=mt_tally$all_matrices$SBS_96 %>% t(),
+                                       sig=mt_sig_bayes_sbs_96$Signature,
+                                       sig_index = "ALL",
+                                       db_type=db_type,
+                                       method="NNLS",
+                                       type="relative",
+                                       sig_db=sig_db)
 
-if (organism == "human"){
-  linear_decomp_mt_sig_legacy_30 <- sig_fit(catalogue_matrix=mt_tally$all_matrices$SBS_96 %>% t(),
-                                            sig=mt_sig_bayes_sbs_96$Signature,
-                                            sig_index = "ALL",
-                                            db_type=db_type,
-                                            method="NNLS",
-                                            type="relative",
-                                            sig_db = "legacy")
-}
+linear_decomp_mt_sig_legacy_30 <- sig_fit(catalogue_matrix=mt_tally$all_matrices$SBS_96 %>% t(),
+                                          sig=mt_sig_bayes_sbs_96$Signature,
+                                          sig_index = "ALL",
+                                          db_type=db_type,
+                                          method="NNLS",
+                                          type="relative",
+                                          sig_db = "legacy")
 
 # prep for output 3.2
 linear_decomp_cosmic3 = as.data.frame(linear_decomp_mt_sig_sbs_96) %>%
@@ -237,21 +203,19 @@ if (file.exists("analyses/old_output.v3.sigs.tsv")){
   tmp_sigs[ rownames(linear_decomp_cosmic3[,"etiology"]) ] = linear_decomp_cosmic3[,"contribution_proportion"]
   cat(sample_name, tmp_sigs,  "\n", sep="\t", append=T, file="analyses/old_output.v3.sigs.tsv")
 }
-# signatures v2
-if (organism == "human"){
-  if (file.exists("analyses/old_output.v2.sigs.tsv")){
-    tmp_sigs = rep(0, length(etio2))
-    names(tmp_sigs) = names(etio2)
-    tmp_sigs[ rownames(linear_decomp_mt_sig_legacy_30) ] = linear_decomp_mt_sig_legacy_30[,1]
-    cat(sample_name, tmp_sigs,  "\n", sep="\t", append=T, file="analyses/old_output.v2.sigs.tsv")
-  } else {
-    cat("Signature", gsub("COSMIC_","Signature\\.", names(etio2)), "\n", sep="\t", file="analyses/old_output.v2.sigs.tsv")
-    cat("Etiology", etio2, "\n", sep="\t", append=T, file="analyses/old_output.v2.sigs.tsv")
-    tmp_sigs = rep(0, 30)
-    names(tmp_sigs) = names(etio2)
-    tmp_sigs[ rownames(linear_decomp_mt_sig_legacy_30) ] = linear_decomp_mt_sig_legacy_30[,1]
-    cat(sample_name, tmp_sigs,  "\n", sep="\t", append=T, file="analyses/old_output.v2.sigs.tsv")
-  }
+# signatures v2（人类固定场景保留）
+if (file.exists("analyses/old_output.v2.sigs.tsv")){
+  tmp_sigs = rep(0, length(etio2))
+  names(tmp_sigs) = names(etio2)
+  tmp_sigs[ rownames(linear_decomp_mt_sig_legacy_30) ] = linear_decomp_mt_sig_legacy_30[,1]
+  cat(sample_name, tmp_sigs,  "\n", sep="\t", append=T, file="analyses/old_output.v2.sigs.tsv")
+} else {
+  cat("Signature", gsub("COSMIC_","Signature\\.", names(etio2)), "\n", sep="\t", file="analyses/old_output.v2.sigs.tsv")
+  cat("Etiology", etio2, "\n", sep="\t", append=T, file="analyses/old_output.v2.sigs.tsv")
+  tmp_sigs = rep(0, 30)
+  names(tmp_sigs) = names(etio2)
+  tmp_sigs[ rownames(linear_decomp_mt_sig_legacy_30) ] = linear_decomp_mt_sig_legacy_30[,1]
+  cat(sample_name, tmp_sigs,  "\n", sep="\t", append=T, file="analyses/old_output.v2.sigs.tsv")
 }
 
 print(paste("Done for", sample_name))
