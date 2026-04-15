@@ -1,6 +1,6 @@
 # FASTQ 质控与合并 Pipeline
 
-本目录用于 **paired-end FASTQ 批量质控（fastp）与按样本合并**。
+本目录用于 **paired-end WGE/WES FASTQ 批量质控（fastp）与按样本合并**。
 
 核心脚本：`run_pipeline.sh`  
 示例清单：`samples.tsv`
