@@ -113,22 +113,23 @@ sample2	/data/xxx/sample2_part2.R1.fastq.gz	/data/xxx/sample2_part2.R2.fastq.gz
 ```bash
 #!/bin/bash
 #SBATCH --job-name=survirus_array
-#SBATCH --partition=cpu2
+#SBATCH --partition=cpu1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=12G
-#SBATCH --array=0-91%8
 #SBATCH --output=logs/array_%A_%a.out
 #SBATCH --error=logs/array_%A_%a.err
 
 set -euo pipefail
 
 # 根据你的环境修改以下路径
-TSV="/path/to/samples.tsv"
-OUT="/path/to/output"
-LOG_DIR="/path/to/pipeline_logs"
-THREADS=1
+source /data/person/wup/public/software/miniconda3/bin/activate fastp
 
-./run_pipeline.sh -i "$TSV" -o "$OUT" -l "$LOG_DIR" -t "$THREADS"
+TSV="/data/person/wup/liusy/wgs/scripts/paired-end-fastq/wes_pairs.tsv"
+OUT="/data/person/wup/public/liusy_files/sccc/preprocessed_bam/wes/fastq"
+LOG_DIR="/data/person/wup/liusy/wgs/scripts/paired-end-fastq/logs"
+THREADS=4
+
+/data/person/wup/liusy/wgs/scripts/paired-end-fastq/run_pipeline.sh -i "$TSV" -o "$OUT" -l "$LOG_DIR" -t "$THREADS" --skip-done
 ```
 
 > 说明：
