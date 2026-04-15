@@ -144,19 +144,13 @@ THREADS=1
 ### 1）仅列出 `.fastq.gz` 文件路径
 
 ```bash
-find /path/to/your_folder -type f -name "*.fastq.gz"
+find /data/person/wup/public/liusy_files/sccc/raw_data/wes -type f -name "*.fastq.gz" | while read -r f; do realpath "$f"; done | awk -F/ '{print $NF "\t" $0}' | sort -V -k1,1 | cut -f2-
 ```
 
-### 2）导出仅 `file_path` 一列的 CSV
+### 2）导出两列 tsv（奇数和偶数区分便于 Excel 整理双端配对）
 
 ```bash
-find /path/to/your_folder -type f -name "*.fastq.gz" | sort | awk 'BEGIN{print "file_path"} {gsub(/"/, "\"\"", $0); print "\"" $0 "\""}' > fastq_files.csv
-```
-
-### 3）导出三列 CSV（便于 Excel 整理双端配对）
-
-```bash
-find /path/to/your_folder -type f -name "*.fastq.gz" | sort | awk 'BEGIN{print "file_path,file_name,parent_dir"} {path=$0; n=split($0,a,"/"); file=a[n]; dir=$0; sub("/" file "$","",dir); gsub(/"/,"\"\"",path); gsub(/"/,"\"\"",file); gsub(/"/,"\"\"",dir); print "\"" path "\",\"" file "\",\"" dir "\""}' > fastq_files.csv
+find /data/person/wup/public/liusy_files/sccc/raw_data/wes -type f -name "*.fastq.gz" | while read -r f; do realpath "$f"; done | awk -F/ '{print $NF "\t" $0}' | sort -V -k1,1 | cut -f2- | awk 'BEGIN{OFS="\t"; print "input_R1","input_R2"} NR%2==1{r1=$0; next} {print r1,$0}' > /data/person/wup/liusy/wgs/wes_pairs.tsv
 ```
 
 导出后可在 Excel/WPS 中按文件名规则筛选并手动整理成 pipeline 所需的 TSV 三列：
