@@ -119,7 +119,6 @@ sample2	/data/xxx/sample2_part2.R1.fastq.gz	/data/xxx/sample2_part2.R2.fastq.gz
 #SBATCH --output=logs/array_%A_%a.out
 #SBATCH --error=logs/array_%A_%a.err
 
-set -euo pipefail
 
 # 根据你的环境修改以下路径
 source /data/person/wup/public/software/miniconda3/bin/activate fastp
