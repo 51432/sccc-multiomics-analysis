@@ -1,5 +1,0 @@
-sample_id	input_R1	input_R2
-sample1	/data/xxx/sample1_part1.R1.fastq.gz	/data/xxx/sample1_part1.R2.fastq.gz
-sample1	/data/xxx/sample1_part2.R1.fastq.gz	/data/xxx/sample1_part2.R2.fastq.gz
-sample2	/data/xxx/sample2_part1.R1.fastq.gz	/data/xxx/sample2_part1.R2.fastq.gz
-sample2	/data/xxx/sample2_part2.R1.fastq.gz	/data/xxx/sample2_part2.R2.fastq.gz
