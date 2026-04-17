@@ -79,12 +79,8 @@ run_mutect2() {
     -O "${out_vcf}"
   )
 
-  if [[ "${ENABLE_PON}" == "1" && -r "${GATK_PON}" ]]; then
-    cmd+=(--panel-of-normals "${GATK_PON}")
-    log "[PATH] pon=${GATK_PON}"
-  else
-    log "[INFO] PoN disabled or unreadable, continue without PoN"
-  fi
+  cmd+=(--panel-of-normals "${GATK_PON}")
+  log "[PATH] pon=${GATK_PON}"
 
   "${cmd[@]}"
 

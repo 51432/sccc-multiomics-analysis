@@ -15,7 +15,6 @@ export END_STAGE="${END_STAGE:-filter}"                 # mutect2|contamination|
 export ENABLE_CONTAMINATION="${ENABLE_CONTAMINATION:-1}" # 1/0
 export ENABLE_ORIENTATION="${ENABLE_ORIENTATION:-1}"     # 1/0
 export ENABLE_ANNOTATION="${ENABLE_ANNOTATION:-0}"       # 1/0
-export ENABLE_PON="${ENABLE_PON:-1}"                     # 1/0
 
 export MAX_PARALLEL="${MAX_PARALLEL:-8}"
 
@@ -151,7 +150,7 @@ fi
 
 # phase2 额外依赖
 if [[ "${PIPELINE_PHASE}" == "phase2" ]]; then
-  _required+=("${GNOMAD_RESOURCE}")
+  _required+=("${GNOMAD_RESOURCE}" "${GATK_PON}")
 fi
 
 for f in "${_required[@]}"; do

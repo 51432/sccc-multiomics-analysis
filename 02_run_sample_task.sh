@@ -44,7 +44,7 @@ if [[ "${PIPELINE_PHASE}" == "phase1" ]]; then
 else
   log "tumor_bam=${tumor_bam}"
   log "normal_bam=${normal_bam}"
-  log "end_stage=${END_STAGE}, contamination=${ENABLE_CONTAMINATION}, orientation=${ENABLE_ORIENTATION}, annotation=${ENABLE_ANNOTATION}, pon=${ENABLE_PON}"
+  log "end_stage=${END_STAGE}, contamination=${ENABLE_CONTAMINATION}, orientation=${ENABLE_ORIENTATION}, annotation=${ENABLE_ANNOTATION}"
 
   run_phase2_somatic_pipeline "${sample_id}" "${tumor_bam}" "${normal_bam}"
 fi

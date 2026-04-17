@@ -66,7 +66,7 @@ SDE014	/data/person/wup/public/liusy_files/sccc/preprocessed_bam/wes/bqsr/TSDE01
 说明：
 
 - **不实现** PoN 构建、不实现 HaplotypeCaller Germline、不恢复 PBS/qsub。
-- `PoN` 仅作为可选输入：`ENABLE_PON=1` 且 `GATK_PON` 可读时自动启用。
+- `PoN`（`${GATK_PON}`）默认启用并作为 Mutect2 固定输入。
 - `--germline-resource ${GNOMAD_RESOURCE}` 默认保留。
 
 ---
@@ -86,7 +86,6 @@ SDE014	/data/person/wup/public/liusy_files/sccc/preprocessed_bam/wes/bqsr/TSDE01
 - `--enable-contamination 1|0`
 - `--enable-orientation 1|0`
 - `--enable-annotation 1|0`
-- `--enable-pon 1|0`
 
 默认值见 `config/00_config.sh`。
 
@@ -100,7 +99,7 @@ SDE014	/data/person/wup/public/liusy_files/sccc/preprocessed_bam/wes/bqsr/TSDE01
 bash 01_submit_slurm_array.sh --pipeline phase1 --samples input/samples.tsv --mode wes --max-parallel 2
 ```
 
-## 5.2 phase2：从 BQSR BAM 到 filtered VCF（按默认阶段与PoN配置）
+## 5.2 phase2：从 BQSR BAM 到 filtered VCF
 
 ```bash
 bash 01_submit_slurm_array.sh \
