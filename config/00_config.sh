@@ -3,9 +3,22 @@ export PIPELINE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export WORKDIR="${WORKDIR:-$(pwd)}"
 
 export MODE="${MODE:-wes}"                 # wes|wgs
+export PIPELINE_PHASE="${PIPELINE_PHASE:-phase1}"   # phase1|phase2
 export SAMPLES_TSV="${SAMPLES_TSV:-samples.tsv}"
+export SAMPLE_PAIRS_TSV="${SAMPLE_PAIRS_TSV:-sample_pairs.tsv}"
+
+# 兼容前半段
 export ENABLE_CHECK_PAIRS="${ENABLE_CHECK_PAIRS:-1}"   # 1/0
+
+# phase2 可选阶段控制
+export END_STAGE="${END_STAGE:-filter}"                 # mutect2|contamination|orientation|filter|annotation
+export ENABLE_CONTAMINATION="${ENABLE_CONTAMINATION:-1}" # 1/0
+export ENABLE_ORIENTATION="${ENABLE_ORIENTATION:-1}"     # 1/0
+export ENABLE_ANNOTATION="${ENABLE_ANNOTATION:-0}"       # 1/0
+export ENABLE_PON="${ENABLE_PON:-1}"                     # 1/0
+
 export MAX_PARALLEL="${MAX_PARALLEL:-8}"
+
 #============输出路径设置=======================
 export OUT_ROOT="/data/person/wup/public/liusy_files/sccc/preprocessed_bam/${MODE}"
 
@@ -91,6 +104,22 @@ case "${MODE}" in
     ;;
 esac
 
+case "${PIPELINE_PHASE}" in
+  phase1|phase2) ;;
+  *)
+    echo "[ERROR] PIPELINE_PHASE must be phase1|phase2, got=${PIPELINE_PHASE}" >&2
+    exit 1
+    ;;
+esac
+
+case "${END_STAGE}" in
+  mutect2|contamination|orientation|filter|annotation) ;;
+  *)
+    echo "[ERROR] END_STAGE must be mutect2|contamination|orientation|filter|annotation, got=${END_STAGE}" >&2
+    exit 1
+    ;;
+esac
+
 # ========= 软件路径（真实路径优先） =========
 export SOFTWARE_ROOT="/data/person/wup/liusy/software"
 
@@ -103,11 +132,6 @@ export SAMTOOLS_BIN="${SAMTOOLS_BIN:-${SOFTWARE_ROOT}/samtools-1.20/samtools}"
 # sambamba如果不在固定目录，就走PATH
 export SAMBAMBA_BIN="${SAMBAMBA_BIN:-/data/person/wup/public/software/miniconda3/envs/gatk/bin/sambamba}"
 export FASTP_BIN="${FASTP_BIN:-/data/person/wup/public/software/miniconda3/envs/fastp/bin/fastp}"
-# ========= 输出目录 =========
-export LOG_DIR="${LOG_DIR:-${WORKDIR}/logs/slurm}"
-export TMP_DIR="${TMP_DIR:-${WORKDIR}/tmp}"
-export STATUS_DIR="${STATUS_DIR:-${WORKDIR}/status}"
-
 
 # ========= 启动校验 =========
 _required=(
@@ -116,10 +140,19 @@ _required=(
   "${KNOWNSITES_SNPS}"
   "${KNOWNSITES_INDELS}"
   "${INTERVALS}"
-  "${BWA_MEM2_BIN}"
   "${GATK_BIN}"
   "${SAMTOOLS_BIN}"
 )
+
+# phase1 额外依赖
+if [[ "${PIPELINE_PHASE}" == "phase1" ]]; then
+  _required+=("${BWA_MEM2_BIN}")
+fi
+
+# phase2 额外依赖
+if [[ "${PIPELINE_PHASE}" == "phase2" ]]; then
+  _required+=("${GNOMAD_RESOURCE}")
+fi
 
 for f in "${_required[@]}"; do
   [[ -r "${f}" ]] || { echo "[ERROR] required file/tool not readable: ${f}" >&2; exit 1; }
