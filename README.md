@@ -37,6 +37,37 @@ sample_id	tumor_bam	normal_bam
 SDE014	/data/person/wup/public/liusy_files/sccc/preprocessed_bam/wes/bqsr/TSDE014.bqsr.bam	/data/person/wup/public/liusy_files/sccc/preprocessed_bam/wes/bqsr/NSDE014.bqsr.bam
 ```
 
+从 BQSR BAM 自动生成 `pairs.tsv` 示例脚本：
+
+```bash
+#!/usr/bin/env bash
+
+bam_dir="/data/person/wup/public/liusy_files/sccc/preprocessed_bam/wes/bqsr"
+out_tsv="pair.tsv"
+
+echo -e "sample_id\ttumor_bam\tnormal_bam" > "${out_tsv}"
+
+find "${bam_dir}" -maxdepth 1 -type f -name "*.bqsr.bam" | sort | while read -r bam; do
+    base=$(basename "${bam}")
+
+    # 只处理 tumor 文件，避免重复写入
+    # 例如 TSDE014.bqsr.bam -> sample_id = SDE014
+    if [[ "${base}" =~ ^T(.+)\.bqsr\.bam$ ]]; then
+        sample_id="${BASH_REMATCH[1]}"
+        tumor_bam="${bam}"
+        normal_bam="${bam_dir}/N${sample_id}.bqsr.bam"
+
+        if [[ -f "${normal_bam}" ]]; then
+            echo -e "${sample_id}\t${tumor_bam}\t${normal_bam}" >> "${out_tsv}"
+        else
+            echo "[WARN] normal bam not found for sample_id=${sample_id}: ${normal_bam}" >&2
+        fi
+    fi
+done
+
+echo "Done. Output written to ${out_tsv}"
+```
+
 已实现严格校验：
 
 1. 表头严格匹配
