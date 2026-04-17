@@ -100,7 +100,7 @@ SDE014	/data/person/wup/public/liusy_files/sccc/preprocessed_bam/wes/bqsr/TSDE01
 bash 01_submit_slurm_array.sh --pipeline phase1 --samples input/samples.tsv --mode wes --max-parallel 2
 ```
 
-## 5.2 phase2：从 BQSR BAM 到 filtered VCF
+## 5.2 phase2：从 BQSR BAM 到 filtered VCF（按默认阶段与PoN配置）
 
 ```bash
 bash 01_submit_slurm_array.sh \
@@ -108,11 +108,9 @@ bash 01_submit_slurm_array.sh \
   --pairs input/sample_pairs.tsv \
   --mode wes \
   --max-parallel 2 \
-  --end-stage filter \
   --enable-contamination 1 \
   --enable-orientation 1 \
-  --enable-annotation 0 \
-  --enable-pon 1
+  --enable-annotation 0
 ```
 
 ## 5.3 只跑 Mutect2
