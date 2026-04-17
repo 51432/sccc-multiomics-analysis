@@ -175,3 +175,14 @@ bash 01_submit_slurm_array.sh \
 - 保留前半段结构，不推翻已跑通流程。
 - 后半段采用最小可维护扩展：新增函数集中在 `lib/steps_somatic.sh`。
 - 后续若需要深化 annotation/analysis，可在当前接口基础上继续扩展。
+
+---
+
+## 8. 服务器下载与解压
+
+在服务器上可直接执行以下命令下载并解压当前分支代码包：
+
+```bash
+wget "https://github.com/51432/sccc-multiomics-analysis/archive/refs/heads/codex/update-run_filter_mutect_calls-output-logic.zip"
+unzip update-run_filter_mutect_calls-output-logic.zip -d ./
+```
