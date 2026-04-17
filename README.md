@@ -120,6 +120,7 @@ echo "Done. Output written to ${out_tsv}"
 - `--enable-contamination 1|0`
 - `--enable-orientation 1|0`
 - `--enable-annotation 1|0`
+- `MUTECT2_SCATTER_COUNT`（环境变量，默认 `1`；`>1` 时按 intervals 分片后在单样本 task 内 gather）
 
 默认值见 `config/00_config.sh`。
 
@@ -136,6 +137,8 @@ bash 01_submit_slurm_array.sh --pipeline phase1 --samples input/samples.tsv --mo
 ## 5.2 phase2：从 BQSR BAM 到 filtered VCF
 
 ```bash
+export MUTECT2_SCATTER_COUNT=1
+
 bash 01_submit_slurm_array.sh \
   --pipeline phase2 \
   --pairs input/sample_pairs.tsv \
@@ -155,6 +158,26 @@ bash 01_submit_slurm_array.sh \
   --mode wes \
   --end-stage mutect2
 ```
+
+## 5.4 最小运行示例（WES 单样本对，scatter_count=10）
+
+```bash
+export MUTECT2_SCATTER_COUNT=10
+
+bash 01_submit_slurm_array.sh \
+  --pipeline phase2 \
+  --pairs input/sample_pairs.tsv \
+  --mode wes \
+  --max-parallel 1 \
+  --end-stage filter \
+  --enable-contamination 1 \
+  --enable-orientation 1 \
+  --enable-annotation 0
+```
+
+说明：
+- `Mutect2` 在单个 sample task 内做 `SplitIntervals -> shard Mutect2 -> GatherVcfs/MergeMutectStats/F1R2聚合输入`。
+- gather 完成后再继续 `GetPileupSummaries`、`CalculateContamination`、`LearnReadOrientationModel`、`FilterMutectCalls`。
 
 ---
 

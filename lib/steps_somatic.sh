@@ -60,32 +60,132 @@ run_mutect2() {
   local out_vcf="${MUTECT2_DIR}/${sid}.unfiltered.vcf.gz"
   local out_stats="${MUTECT2_DIR}/${sid}.unfiltered.vcf.gz.stats"
   local out_f1r2="${F1R2_DIR}/${sid}.f1r2.tar.gz"
+  local f1r2_manifest="${F1R2_DIR}/${sid}.f1r2.inputs.list"
+
+  local scatter_count="${MUTECT2_SCATTER_COUNT:-1}"
+  if ! [[ "${scatter_count}" =~ ^[1-9][0-9]*$ ]]; then
+    echo "[ERROR] MUTECT2_SCATTER_COUNT must be positive integer, got=${scatter_count}" >&2
+    return 1
+  fi
 
   log "[RUN] mutect2 sample=${sid}"
   log "[PATH] tumor_bam=${tumor_bam} (SM=${tumor_sm})"
   log "[PATH] normal_bam=${normal_bam} (SM=${normal_sm})"
   log "[PATH] intervals=${INTERVALS}"
   log "[PATH] gnomad=${GNOMAD_RESOURCE}"
+  log "[CONF] mutect2_scatter_count=${scatter_count}"
 
-  local cmd=(
-    "${GATK_BIN}" --java-options "-Xmx24G -XX:+UseParallelGC -Djava.io.tmpdir=${TMP_DIR}/${sid}"
-    Mutect2
-    -R "${REFERENCE}"
-    -L "${INTERVALS}"
-    -I "${tumor_bam}" -tumor "${tumor_sm}"
-    -I "${normal_bam}" -normal "${normal_sm}"
-    --germline-resource "${GNOMAD_RESOURCE}"
-    --f1r2-tar-gz "${out_f1r2}"
-    -O "${out_vcf}"
-  )
+  if [[ "${scatter_count}" -le 1 ]]; then
+    local cmd=(
+      "${GATK_BIN}" --java-options "-Xmx24G -XX:+UseParallelGC -Djava.io.tmpdir=${TMP_DIR}/${sid}"
+      Mutect2
+      -R "${REFERENCE}"
+      -L "${INTERVALS}"
+      -I "${tumor_bam}" -tumor "${tumor_sm}"
+      -I "${normal_bam}" -normal "${normal_sm}"
+      --germline-resource "${GNOMAD_RESOURCE}"
+      --f1r2-tar-gz "${out_f1r2}"
+      -O "${out_vcf}"
+    )
 
-  cmd+=(--panel-of-normals "${GATK_PON}")
-  log "[PATH] pon=${GATK_PON}"
+    cmd+=(--panel-of-normals "${GATK_PON}")
+    log "[PATH] pon=${GATK_PON}"
 
-  "${cmd[@]}"
+    "${cmd[@]}"
+    printf '%s\n' "${out_f1r2}" > "${f1r2_manifest}"
+  else
+    # 单样本 task 内做 scatter/gather，不引入额外 sbatch/pbs
+    local scatter_root="${TMP_DIR}/${sid}/mutect2_scatter"
+    local scatter_intervals_dir="${scatter_root}/intervals"
+    local shard_out_dir="${scatter_root}/shards"
+    local gather_dir="${scatter_root}/gather"
+    mkdir -p "${scatter_intervals_dir}" "${shard_out_dir}" "${gather_dir}"
+
+    log "[RUN] split intervals sample=${sid}, scatter_count=${scatter_count}"
+    "${GATK_BIN}" --java-options "-Xmx8G -Djava.io.tmpdir=${TMP_DIR}/${sid}" SplitIntervals \
+      -R "${REFERENCE}" \
+      -L "${INTERVALS}" \
+      --scatter-count "${scatter_count}" \
+      -O "${scatter_intervals_dir}"
+
+    local interval_files=()
+    while IFS= read -r itv; do
+      interval_files+=("${itv}")
+    done < <(find "${scatter_intervals_dir}" -maxdepth 1 -type f -name "*.interval_list" | sort)
+    [[ "${#interval_files[@]}" -gt 0 ]] || {
+      echo "[ERROR] no scatter interval shards generated in ${scatter_intervals_dir}" >&2
+      return 1
+    }
+
+    local shard_vcfs=()
+    local shard_stats=()
+    local shard_f1r2s=()
+    local shard_idx=0
+    for itv in "${interval_files[@]}"; do
+      shard_idx=$((shard_idx + 1))
+      local shard_tag
+      shard_tag="$(printf 'shard_%04d' "${shard_idx}")"
+      local shard_vcf="${shard_out_dir}/${sid}.${shard_tag}.unfiltered.vcf.gz"
+      local shard_stats_file="${shard_vcf}.stats"
+      local shard_f1r2="${shard_out_dir}/${sid}.${shard_tag}.f1r2.tar.gz"
+
+      log "[RUN] mutect2 ${shard_tag} sample=${sid}"
+      "${GATK_BIN}" --java-options "-Xmx24G -XX:+UseParallelGC -Djava.io.tmpdir=${TMP_DIR}/${sid}" Mutect2 \
+        -R "${REFERENCE}" \
+        -L "${itv}" \
+        -I "${tumor_bam}" -tumor "${tumor_sm}" \
+        -I "${normal_bam}" -normal "${normal_sm}" \
+        --germline-resource "${GNOMAD_RESOURCE}" \
+        --panel-of-normals "${GATK_PON}" \
+        --f1r2-tar-gz "${shard_f1r2}" \
+        -O "${shard_vcf}"
+
+      [[ -r "${shard_vcf}" ]] || { echo "[ERROR] shard vcf not found: ${shard_vcf}" >&2; return 1; }
+      [[ -r "${shard_stats_file}" ]] || { echo "[ERROR] shard stats not found: ${shard_stats_file}" >&2; return 1; }
+      [[ -r "${shard_f1r2}" ]] || { echo "[ERROR] shard f1r2 not found: ${shard_f1r2}" >&2; return 1; }
+
+      shard_vcfs+=("${shard_vcf}")
+      shard_stats+=("${shard_stats_file}")
+      shard_f1r2s+=("${shard_f1r2}")
+    done
+
+    log "[RUN] gather mutect2 vcfs sample=${sid}"
+    local gather_vcf_cmd=(
+      "${GATK_BIN}" --java-options "-Xmx8G -Djava.io.tmpdir=${TMP_DIR}/${sid}"
+      GatherVcfs
+      -O "${out_vcf}"
+    )
+    for vcf in "${shard_vcfs[@]}"; do
+      gather_vcf_cmd+=(-I "${vcf}")
+    done
+    "${gather_vcf_cmd[@]}"
+
+    log "[RUN] gather mutect2 stats sample=${sid}"
+    local gather_stats_cmd=(
+      "${GATK_BIN}" --java-options "-Xmx8G -Djava.io.tmpdir=${TMP_DIR}/${sid}"
+      MergeMutectStats
+      -O "${out_stats}"
+    )
+    for st in "${shard_stats[@]}"; do
+      gather_stats_cmd+=(--stats "${st}")
+    done
+    "${gather_stats_cmd[@]}"
+
+    # F1R2 不直接拼 tar，改为聚合输入清单供 LearnReadOrientationModel 统一读取
+    : > "${f1r2_manifest}"
+    for f1r2 in "${shard_f1r2s[@]}"; do
+      printf '%s\n' "${f1r2}" >> "${f1r2_manifest}"
+    done
+    # 保留一个稳定路径，便于向后兼容检查逻辑
+    ln -sf "${shard_f1r2s[0]}" "${out_f1r2}"
+  fi
 
   [[ -r "${out_stats}" ]] || {
     echo "[ERROR] mutect2 stats not found: ${out_stats}" >&2
+    return 1
+  }
+  [[ -r "${out_vcf}" ]] || {
+    echo "[ERROR] mutect2 vcf not found: ${out_vcf}" >&2
     return 1
   }
 
@@ -137,18 +237,40 @@ run_orientation_model() {
   mkdir -p "${F1R2_DIR}" "${STATUS_DIR}/${sid}" "${TMP_DIR}/${sid}"
 
   local in_f1r2="${F1R2_DIR}/${sid}.f1r2.tar.gz"
+  local in_f1r2_manifest="${F1R2_DIR}/${sid}.f1r2.inputs.list"
   local out_priors="${F1R2_DIR}/${sid}.read-orientation-model.tar.gz"
 
-  [[ -r "${in_f1r2}" ]] || {
-    echo "[ERROR] f1r2 tar not found for orientation model: ${in_f1r2}" >&2
-    return 1
-  }
-
   log "[RUN] orientation sample=${sid}"
+  local cmd=(
+    "${GATK_BIN}" --java-options "-Xmx8G -Djava.io.tmpdir=${TMP_DIR}/${sid}"
+    LearnReadOrientationModel
+  )
 
-  "${GATK_BIN}" --java-options "-Xmx8G -Djava.io.tmpdir=${TMP_DIR}/${sid}" LearnReadOrientationModel \
-    -I "${in_f1r2}" \
-    -O "${out_priors}"
+  if [[ -r "${in_f1r2_manifest}" ]]; then
+    local cnt=0
+    while IFS= read -r f1r2; do
+      [[ -n "${f1r2}" ]] || continue
+      [[ -r "${f1r2}" ]] || {
+        echo "[ERROR] f1r2 shard tar not found for orientation model: ${f1r2}" >&2
+        return 1
+      }
+      cmd+=(-I "${f1r2}")
+      cnt=$((cnt + 1))
+    done < "${in_f1r2_manifest}"
+    [[ "${cnt}" -gt 0 ]] || {
+      echo "[ERROR] f1r2 manifest is empty: ${in_f1r2_manifest}" >&2
+      return 1
+    }
+  else
+    [[ -r "${in_f1r2}" ]] || {
+      echo "[ERROR] f1r2 tar not found for orientation model: ${in_f1r2}" >&2
+      return 1
+    }
+    cmd+=(-I "${in_f1r2}")
+  fi
+
+  cmd+=(-O "${out_priors}")
+  "${cmd[@]}"
 
   touch "${STATUS_DIR}/${sid}/30_orientation.done"
   log "[DONE] orientation sample=${sid}"

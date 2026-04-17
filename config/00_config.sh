@@ -15,6 +15,7 @@ export END_STAGE="${END_STAGE:-filter}"                 # mutect2|contamination|
 export ENABLE_CONTAMINATION="${ENABLE_CONTAMINATION:-1}" # 1/0
 export ENABLE_ORIENTATION="${ENABLE_ORIENTATION:-1}"     # 1/0
 export ENABLE_ANNOTATION="${ENABLE_ANNOTATION:-0}"       # 1/0
+export MUTECT2_SCATTER_COUNT="${MUTECT2_SCATTER_COUNT:-1}" # >=1，1表示不分片
 
 export MAX_PARALLEL="${MAX_PARALLEL:-8}"
 
