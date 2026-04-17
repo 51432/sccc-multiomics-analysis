@@ -1,39 +1,50 @@
 # AGENTS.md
 
-## Repository purpose
-This repository is used for bioinformatics analysis related to cervical small cell carcinoma (SCCC), including WGS and other multi-omics workflows.
+## 仓库用途
+本仓库用于与宫颈小细胞癌（SCCC）相关的生物信息学分析，包括 WGS 及其他多组学流程。
 
-## General goals
-- Help reorganize legacy analysis code into a cleaner and more maintainable pipeline.
-- Preserve the original scientific workflow whenever possible.
-- Prefer incremental migration over full rewriting.
-- Keep the repository structure clear and modular.
+## 总体目标
+- 帮助将历史分析代码逐步整理为更清晰、更易维护的 pipeline。
+- 在可行情况下尽量保留原有科学分析流程。
+- 优先采用渐进式迁移，而不是整体推倒重写。
+- 保持仓库结构清晰、模块化、易维护。
 
-## Communication preferences
-- Please explain summaries, migration notes, README content, and code comments in Chinese whenever possible.
-- Keep filenames, function names, variable names, and code identifiers in English.
-- Use clear and concise language.
+## 沟通偏好
+- 总结、迁移说明、README 内容、代码注释等，尽量使用中文。
+- 文件名、函数名、变量名、代码标识符保持英文。
+- 表达清楚、简洁，避免不必要的复杂描述。
 
-## Code editing rules
-- Do not delete legacy scripts directly.
-- Move outdated or uncertain files into an archive folder instead of removing them.
-- Prefer reorganizing and documenting over rewriting.
-- Replace hard-coded paths with configurable paths whenever possible.
-- Do not change biological or statistical logic unless explicitly requested.
+## 代码修改规则
+- 不要直接删除历史脚本。
+- 过时或暂时不确定是否还需要的文件，优先移动到 `archive/` 目录，而不是直接移除。
+- 优先做整理、归类、加注释和补文档，而不是大幅重写。
+- 尽量把硬编码路径改为可配置路径。
+- 除非我明确要求，否则不要改变生物学或统计学分析逻辑。
 
-## Workflow preferences
-- First inspect and summarize the current workflow before making large changes.
-- Group scripts by analysis stage.
-- Make the pipeline easier to adapt to a new project environment.
-- Add documentation when introducing new wrappers, configs, or directory structures.
+## 工作流偏好
+- 在进行较大修改前，先检查并总结当前 workflow。
+- 按分析阶段对脚本进行归类。
+- 让 pipeline 更容易适配新的项目环境。
+- 当新增 wrapper、配置文件或目录结构时，请同步补充文档。
 
-# Editing continuity rules
-- When a pipeline directory or scaffold has already been created in this repository, continue editing that existing directory instead of creating a new top-level folder, duplicate scaffold, or parallel pipeline implementation.
+## 连续修改规则
+- 如果仓库中已经存在某个 pipeline 目录、脚手架或 Slurm 版重构结构，请直接在现有实现基础上继续修改，不要重复创建新的顶层目录、重复脚手架或平行版本。
+- 不要为了修订而新建一个新的 pipeline 文件夹。
+- 优先在原有文件基础上原地修改。
+- 如果确实需要结构性调整，请先说明原因，再进行修改。
+- 除非我明确要求，否则不要重复创建 wrapper、配置文件或 README。
 
-- Do not create a new pipeline folder merely to apply revisions.
-- Prefer modifying the existing files in place.
-- If a structural change is necessary, explain why before doing it.
-- Avoid duplicating wrappers, configs, or README files unless explicitly requested.
+## 分支与 PR 规则
+- 优先在我当前已有的 branch 基础上继续修改，不要新建 branch，除非我明确要求。
+- 如果当前仓库中已经有 Codex 之前创建的改动、已有实现，或已经存在打开的 PR，请优先在该已有实现基础上继续迭代，不要在其他位置重复搭建同一套 pipeline。
+- 优先不要创建新的 PR；如果已经有对应的 PR 或现有分支可继续使用，请直接在原有基础上提交后续修改。
+- 只有在我明确要求，或确有必要且已说明原因的情况下，才允许创建新的 branch 或新的 PR。
 
-- If previous Codex changes already exist in the repository or in an open PR branch, continue from that implementation rather than rebuilding the same pipeline in another location.
+## 修改原则补充
+- 新增分析阶段时，尽量以“可选阶段”的方式设计，避免把所有步骤硬编码成一次跑到底。
+- 修改完成后，请说明：
+  - 新增或修改了哪些文件
+  - 每个文件的作用
+  - 新增了哪些参数或配置项
+  - 做了哪些静态检查或最小运行验证
 
