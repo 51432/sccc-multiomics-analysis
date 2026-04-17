@@ -46,6 +46,30 @@ _get_bam_sample_name() {
   echo "${sm}"
 }
 
+_ensure_vcf_tbi() {
+  local vcf="$1"
+  local tbi="${vcf}.tbi"
+
+  [[ -r "${vcf}" ]] || {
+    echo "[ERROR] vcf not found for indexing: ${vcf}" >&2
+    return 1
+  }
+
+  if [[ -r "${tbi}" ]]; then
+    return 0
+  fi
+
+  log "[RUN] index vcf=${vcf}"
+  "${GATK_BIN}" --java-options "-Xmx4G -Djava.io.tmpdir=${TMP_DIR}" IndexFeatureFile \
+    -I "${vcf}" \
+    -O "${tbi}"
+
+  [[ -r "${tbi}" ]] || {
+    echo "[ERROR] failed to create vcf index: ${tbi}" >&2
+    return 1
+  }
+}
+
 run_mutect2() {
   local sid="$1"
   local tumor_bam="$2"
@@ -221,6 +245,7 @@ run_mutect2() {
     echo "[ERROR] mutect2 vcf not found: ${out_vcf}" >&2
     return 1
   }
+  _ensure_vcf_tbi "${out_vcf}"
 
   touch "${STATUS_DIR}/${sid}/10_mutect2.done"
   log "[DONE] mutect2 sample=${sid}"
@@ -347,11 +372,13 @@ run_filter_mutect_calls() {
   )
 
   "${cmd_with_ob[@]}"
+  _ensure_vcf_tbi "${out_vcf}"
 
   log "[RUN] filter(no-obpriors) sample=${sid}"
   local cmd_no_ob=("${base_cmd[@]}")
   cmd_no_ob+=(-O "${out_vcf_no_obpriors}")
   "${cmd_no_ob[@]}"
+  _ensure_vcf_tbi "${out_vcf_no_obpriors}"
 
   touch "${STATUS_DIR}/${sid}/40_filter.done"
   log "[DONE] filter sample=${sid}"
