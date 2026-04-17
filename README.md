@@ -120,7 +120,8 @@ echo "Done. Output written to ${out_tsv}"
 - `--enable-contamination 1|0`
 - `--enable-orientation 1|0`
 - `--enable-annotation 1|0`
-- `MUTECT2_SCATTER_COUNT`（环境变量，默认 `1`；`>1` 时按 intervals 分片后在单样本 task 内 gather）
+- `MUTECT2_SCATTER_COUNT`（环境变量，默认 `1`；`>1` 时按 intervals 分片）
+- `MUTECT2_SCATTER_PARALLEL`（环境变量，默认 `4`；单样本 task 内 shard 最大并发数，且不超过 `MUTECT2_SCATTER_COUNT`）
 
 默认值见 `config/00_config.sh`。
 
@@ -138,6 +139,7 @@ bash 01_submit_slurm_array.sh --pipeline phase1 --samples input/samples.tsv --mo
 
 ```bash
 export MUTECT2_SCATTER_COUNT=1
+export MUTECT2_SCATTER_PARALLEL=1
 
 bash 01_submit_slurm_array.sh \
   --pipeline phase2 \
@@ -163,6 +165,7 @@ bash 01_submit_slurm_array.sh \
 
 ```bash
 export MUTECT2_SCATTER_COUNT=10
+export MUTECT2_SCATTER_PARALLEL=4
 
 bash 01_submit_slurm_array.sh \
   --pipeline phase2 \
@@ -178,6 +181,7 @@ bash 01_submit_slurm_array.sh \
 说明：
 - `Mutect2` 在单个 sample task 内做 `SplitIntervals -> shard Mutect2（后台并行） -> GatherVcfs/MergeMutectStats/F1R2聚合输入`。
 - gather 完成后再继续 `GetPileupSummaries`、`CalculateContamination`、`LearnReadOrientationModel`、`FilterMutectCalls`。
+- WES 建议先从 `MUTECT2_SCATTER_COUNT=10`、`MUTECT2_SCATTER_PARALLEL=4` 起步，再按机器 CPU/内存调整。
 
 ---
 

@@ -63,8 +63,13 @@ run_mutect2() {
   local f1r2_manifest="${F1R2_DIR}/${sid}.f1r2.inputs.list"
 
   local scatter_count="${MUTECT2_SCATTER_COUNT:-1}"
+  local scatter_parallel="${MUTECT2_SCATTER_PARALLEL:-4}"
   if ! [[ "${scatter_count}" =~ ^[1-9][0-9]*$ ]]; then
     echo "[ERROR] MUTECT2_SCATTER_COUNT must be positive integer, got=${scatter_count}" >&2
+    return 1
+  fi
+  if ! [[ "${scatter_parallel}" =~ ^[1-9][0-9]*$ ]]; then
+    echo "[ERROR] MUTECT2_SCATTER_PARALLEL must be positive integer, got=${scatter_parallel}" >&2
     return 1
   fi
 
@@ -73,7 +78,10 @@ run_mutect2() {
   log "[PATH] normal_bam=${normal_bam} (SM=${normal_sm})"
   log "[PATH] intervals=${INTERVALS}"
   log "[PATH] gnomad=${GNOMAD_RESOURCE}"
-  log "[CONF] mutect2_scatter_count=${scatter_count}"
+  if [[ "${scatter_parallel}" -gt "${scatter_count}" ]]; then
+    scatter_parallel="${scatter_count}"
+  fi
+  log "[CONF] mutect2_scatter_count=${scatter_count}, mutect2_scatter_parallel=${scatter_parallel}"
 
   if [[ "${scatter_count}" -le 1 ]]; then
     local cmd=(
@@ -155,8 +163,8 @@ run_mutect2() {
       shard_stats+=("${shard_stats_file}")
       shard_f1r2s+=("${shard_f1r2}")
 
-      # 并发上限 = scatter_count：每攒满一批就等待完成
-      if [[ "${#running_pids[@]}" -ge "${scatter_count}" ]]; then
+      # 并发上限 = scatter_parallel：每攒满一批就等待完成
+      if [[ "${#running_pids[@]}" -ge "${scatter_parallel}" ]]; then
         for pid in "${running_pids[@]}"; do
           wait "${pid}" || {
             echo "[ERROR] mutect2 shard failed, sample=${sid}, pid=${pid}" >&2
