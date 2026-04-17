@@ -68,6 +68,9 @@ SDE014	/data/person/wup/public/liusy_files/sccc/preprocessed_bam/wes/bqsr/TSDE01
 - **不实现** PoN 构建、不实现 HaplotypeCaller Germline、不恢复 PBS/qsub。
 - `PoN`（`${GATK_PON}`）默认启用并作为 Mutect2 固定输入。
 - `--germline-resource ${GNOMAD_RESOURCE}` 默认保留。
+- `FilterMutectCalls` 会输出两个版本：
+  - `${sample_id}.filtered.vcf.gz`（默认包含 `--contamination-table`、`--tumor-segmentation`、`--ob-priors`）
+  - `${sample_id}.filtered.no-obpriors.vcf.gz`（不带 `--ob-priors`）
 
 ---
 

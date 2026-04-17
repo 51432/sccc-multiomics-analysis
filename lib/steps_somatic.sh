@@ -161,31 +161,42 @@ run_filter_mutect_calls() {
 
   local in_vcf="${MUTECT2_DIR}/${sid}.unfiltered.vcf.gz"
   local in_stats="${MUTECT2_DIR}/${sid}.unfiltered.vcf.gz.stats"
+  local contamination_table="${CONTAM_DIR}/${sid}.contamination.table"
+  local segmentation_table="${CONTAM_DIR}/${sid}.segments.table"
+  local ob_priors="${F1R2_DIR}/${sid}.read-orientation-model.tar.gz"
   local out_vcf="${FILTERED_DIR}/${sid}.filtered.vcf.gz"
+  local out_vcf_no_obpriors="${FILTERED_DIR}/${sid}.filtered.no-obpriors.vcf.gz"
 
   [[ -r "${in_vcf}" ]] || { echo "[ERROR] unfiltered vcf not found: ${in_vcf}" >&2; return 1; }
   [[ -r "${in_stats}" ]] || { echo "[ERROR] mutect2 stats not found: ${in_stats}" >&2; return 1; }
+  [[ -r "${contamination_table}" ]] || { echo "[ERROR] contamination table not found: ${contamination_table}" >&2; return 1; }
+  [[ -r "${segmentation_table}" ]] || { echo "[ERROR] tumor segmentation table not found: ${segmentation_table}" >&2; return 1; }
+  [[ -r "${ob_priors}" ]] || { echo "[ERROR] read orientation priors not found: ${ob_priors}" >&2; return 1; }
 
-  log "[RUN] filter sample=${sid}"
+  log "[RUN] filter(with ob-priors) sample=${sid}"
 
-  local cmd=(
+  local base_cmd=(
     "${GATK_BIN}" --java-options "-Xmx12G -Djava.io.tmpdir=${TMP_DIR}/${sid}"
     FilterMutectCalls
     -R "${REFERENCE}"
     -V "${in_vcf}"
     --stats "${in_stats}"
+    --contamination-table "${contamination_table}"
+    --tumor-segmentation "${segmentation_table}"
+  )
+
+  local cmd_with_ob=("${base_cmd[@]}")
+  cmd_with_ob+=(
+    --ob-priors "${ob_priors}"
     -O "${out_vcf}"
   )
 
-  if [[ "${ENABLE_CONTAMINATION}" == "1" && -r "${CONTAM_DIR}/${sid}.contamination.table" ]]; then
-    cmd+=(--contamination-table "${CONTAM_DIR}/${sid}.contamination.table")
-  fi
+  "${cmd_with_ob[@]}"
 
-  if [[ "${ENABLE_ORIENTATION}" == "1" && -r "${F1R2_DIR}/${sid}.read-orientation-model.tar.gz" ]]; then
-    cmd+=(--ob-priors "${F1R2_DIR}/${sid}.read-orientation-model.tar.gz")
-  fi
-
-  "${cmd[@]}"
+  log "[RUN] filter(no-obpriors) sample=${sid}"
+  local cmd_no_ob=("${base_cmd[@]}")
+  cmd_no_ob+=(-O "${out_vcf_no_obpriors}")
+  "${cmd_no_ob[@]}"
 
   touch "${STATUS_DIR}/${sid}/40_filter.done"
   log "[DONE] filter sample=${sid}"
