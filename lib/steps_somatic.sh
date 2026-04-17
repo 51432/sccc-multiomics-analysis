@@ -121,6 +121,7 @@ run_mutect2() {
     local shard_stats=()
     local shard_f1r2s=()
     local shard_idx=0
+    local -a running_pids=()
     for itv in "${interval_files[@]}"; do
       shard_idx=$((shard_idx + 1))
       local shard_tag
@@ -128,25 +129,49 @@ run_mutect2() {
       local shard_vcf="${shard_out_dir}/${sid}.${shard_tag}.unfiltered.vcf.gz"
       local shard_stats_file="${shard_vcf}.stats"
       local shard_f1r2="${shard_out_dir}/${sid}.${shard_tag}.f1r2.tar.gz"
+      local shard_tmp_dir="${scatter_root}/tmp/${shard_tag}"
 
-      log "[RUN] mutect2 ${shard_tag} sample=${sid}"
-      "${GATK_BIN}" --java-options "-Xmx24G -XX:+UseParallelGC -Djava.io.tmpdir=${TMP_DIR}/${sid}" Mutect2 \
-        -R "${REFERENCE}" \
-        -L "${itv}" \
-        -I "${tumor_bam}" -tumor "${tumor_sm}" \
-        -I "${normal_bam}" -normal "${normal_sm}" \
-        --germline-resource "${GNOMAD_RESOURCE}" \
-        --panel-of-normals "${GATK_PON}" \
-        --f1r2-tar-gz "${shard_f1r2}" \
-        -O "${shard_vcf}"
+      mkdir -p "${shard_tmp_dir}"
 
-      [[ -r "${shard_vcf}" ]] || { echo "[ERROR] shard vcf not found: ${shard_vcf}" >&2; return 1; }
-      [[ -r "${shard_stats_file}" ]] || { echo "[ERROR] shard stats not found: ${shard_stats_file}" >&2; return 1; }
-      [[ -r "${shard_f1r2}" ]] || { echo "[ERROR] shard f1r2 not found: ${shard_f1r2}" >&2; return 1; }
+      log "[RUN] mutect2 ${shard_tag} sample=${sid} (bg)"
+      (
+        "${GATK_BIN}" --java-options "-Xmx24G -XX:+UseParallelGC -Djava.io.tmpdir=${shard_tmp_dir}" Mutect2 \
+          -R "${REFERENCE}" \
+          -L "${itv}" \
+          -I "${tumor_bam}" -tumor "${tumor_sm}" \
+          -I "${normal_bam}" -normal "${normal_sm}" \
+          --germline-resource "${GNOMAD_RESOURCE}" \
+          --panel-of-normals "${GATK_PON}" \
+          --f1r2-tar-gz "${shard_f1r2}" \
+          -O "${shard_vcf}"
+
+        [[ -r "${shard_vcf}" ]] || { echo "[ERROR] shard vcf not found: ${shard_vcf}" >&2; exit 1; }
+        [[ -r "${shard_stats_file}" ]] || { echo "[ERROR] shard stats not found: ${shard_stats_file}" >&2; exit 1; }
+        [[ -r "${shard_f1r2}" ]] || { echo "[ERROR] shard f1r2 not found: ${shard_f1r2}" >&2; exit 1; }
+      ) &
+      running_pids+=("$!")
 
       shard_vcfs+=("${shard_vcf}")
       shard_stats+=("${shard_stats_file}")
       shard_f1r2s+=("${shard_f1r2}")
+
+      # 并发上限 = scatter_count：每攒满一批就等待完成
+      if [[ "${#running_pids[@]}" -ge "${scatter_count}" ]]; then
+        for pid in "${running_pids[@]}"; do
+          wait "${pid}" || {
+            echo "[ERROR] mutect2 shard failed, sample=${sid}, pid=${pid}" >&2
+            return 1
+          }
+        done
+        running_pids=()
+      fi
+    done
+
+    for pid in "${running_pids[@]}"; do
+      wait "${pid}" || {
+        echo "[ERROR] mutect2 shard failed, sample=${sid}, pid=${pid}" >&2
+        return 1
+      }
     done
 
     log "[RUN] gather mutect2 vcfs sample=${sid}"

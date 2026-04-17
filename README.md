@@ -176,7 +176,7 @@ bash 01_submit_slurm_array.sh \
 ```
 
 说明：
-- `Mutect2` 在单个 sample task 内做 `SplitIntervals -> shard Mutect2 -> GatherVcfs/MergeMutectStats/F1R2聚合输入`。
+- `Mutect2` 在单个 sample task 内做 `SplitIntervals -> shard Mutect2（后台并行） -> GatherVcfs/MergeMutectStats/F1R2聚合输入`。
 - gather 完成后再继续 `GetPileupSummaries`、`CalculateContamination`、`LearnReadOrientationModel`、`FilterMutectCalls`。
 
 ---
