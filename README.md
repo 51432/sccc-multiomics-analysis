@@ -21,15 +21,10 @@
 
 ## 输入格式
 
-输入为一个 TSV 文件，且表头固定为：
+输入为一个 TSV 文件，且表头固定，TAB分隔，示例（见 `samples.tsv`）：
 
 ```tsv
 sample_id	input_R1	input_R2
-```
-
-示例（见 `samples.tsv`）：
-
-```tsv
 sample1	/data/xxx/sample1_part1.R1.fastq.gz	/data/xxx/sample1_part1.R2.fastq.gz
 sample1	/data/xxx/sample1_part2.R1.fastq.gz	/data/xxx/sample1_part2.R2.fastq.gz
 sample2	/data/xxx/sample2_part1.R1.fastq.gz	/data/xxx/sample2_part1.R2.fastq.gz
@@ -39,6 +34,17 @@ sample2	/data/xxx/sample2_part2.R1.fastq.gz	/data/xxx/sample2_part2.R2.fastq.gz
 > `partN` 编号由脚本按 TSV 读取顺序自动生成，并在同一 `sample_id` 内递增。
 
 ---
+
+### 生成TSV文件（一行命令）
+```bash
+(echo -e "sample_id\tinput_R1\tinput_R2"; \
+ for f in /data/person/wup/public/liusy_files/sccc/raw_data/wgs/*.R1.fastq.gz; do \
+   base=$(basename "$f" .R1.fastq.gz); \
+   sample_id=${base%_*}; \
+   echo -e "${sample_id}\t${f}\t${f/.R1./.R2.}"; \
+ done) > samples_multipart.tsv
+```
+
 
 ## 输出目录结构
 
