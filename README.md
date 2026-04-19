@@ -35,7 +35,7 @@ sample2	/data/xxx/sample2_part2.R1.fastq.gz	/data/xxx/sample2_part2.R2.fastq.gz
 
 ---
 
-### 生成TSV文件（一行命令）
+### 生成TSV文件samples.tsv（一行命令）
 ```bash
 (echo -e "sample_id\tinput_R1\tinput_R2"; \
  for f in /data/person/wup/public/liusy_files/sccc/raw_data/wgs/*.R1.fastq.gz; do \
