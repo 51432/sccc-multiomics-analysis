@@ -1,27 +1,21 @@
-# FASTQ 质控与合并 Pipeline
+# FASTQ 预处理（SLURM Job Array 版本）
 
-本目录用于 **paired-end FASTQ 批量质控（fastp）与按样本合并**。
+本仓库提供一套**纯 Bash** 的 FASTQ 预处理流程，面向 Linux + SLURM 集群：
 
-核心脚本：`run_pipeline.sh`  
-示例清单：`samples.tsv`
+1. 按 `sample_id` 聚合同一样本的多个 FASTQ 分片（R1/R2 分开 merge）
+2. 对每个样本的 merged FASTQ 运行一次 `fastp`
+3. 使用 SLURM job array 按样本并行提交任务，并支持并发上限控制
 
----
-
-## 功能概述
-
-该 pipeline 适用于以下场景：
-
-- 同一个 `sample_id` 在 TSV 中出现多行（表示多个分片）。
-- 先按 `sample_id` 合并所有分片原始 FASTQ，再执行一次样本级 `fastp` 质控。
-- 合并后的原始文件保存到 `merged/`，最终 fastp 结果保存到 `fastq/`。
-- 质控报告（html/json）按样本保存到 `reports_fastq/<sample_id>/`。
-- 日志目录通过 `-l` 单独指定，不放在输出目录中。
+> 当前推荐入口脚本：
+>
+> - `01_submit_fastp_pipeline.sh`（提交器）
+> - `02_run_fastp_pipeline_array.sh`（array worker）
 
 ---
 
 ## 输入格式
 
-输入为一个 TSV 文件，且表头固定，TAB分隔，示例（见 `samples.tsv`）：
+输入文件为 `samples.tsv`（tab 分隔，第一行为表头，必须严格为以下三列）：
 
 ```tsv
 sample_id	input_R1	input_R2
@@ -31,117 +25,106 @@ sample2	/data/xxx/sample2_part1.R1.fastq.gz	/data/xxx/sample2_part1.R2.fastq.gz
 sample2	/data/xxx/sample2_part2.R1.fastq.gz	/data/xxx/sample2_part2.R2.fastq.gz
 ```
 
-> `partN` 编号由脚本按 TSV 读取顺序自动生成，并在同一 `sample_id` 内递增。
-
 ---
-
-### 生成TSV文件samples.tsv（一行命令）
-```bash
-(echo -e "sample_id\tinput_R1\tinput_R2"; \
- for f in /data/person/wup/public/liusy_files/sccc/raw_data/wgs/*.R1.fastq.gz; do \
-   base=$(basename "$f" .R1.fastq.gz); \
-   sample_id=${base%_*}; \
-   echo -e "${sample_id}\t${f}\t${f/.R1./.R2.}"; \
- done) > samples_multipart.tsv
-```
-
 
 ## 输出目录结构
 
-执行后输出目录结构如下：
+提交脚本会自动创建目录（已存在则跳过）：
 
 ```text
-/path/to/output/
+OUTDIR/
 ├── merged/
-├── fastq/
-└── reports_fastq/
+├── fastp/
+├── reports_fastp/
+│   └── <sample_id>/
+├── logs/
+└── meta/
 ```
 
-说明：
-
-- `merged/`：每个样本的合并结果
-  - `sample_id.R1.merged.fastq.gz`（先合并得到的原始 R1）
-  - `sample_id.R2.merged.fastq.gz`（先合并得到的原始 R2）
-- `fastq/`：每个样本最终 fastp 结果
-  - `sample_id.R1.fastp.gz`
-  - `sample_id.R2.fastp.gz`
-- `reports_fastq/`：按样本分目录保存 fastp 报告
-  - `reports_fastq/sample1/*.html, *.json`
+- `merged/`：每个样本 merge 后的中间文件
+  - `<sample_id>.R1.merged.fastq.gz`
+  - `<sample_id>.R2.merged.fastq.gz`
+- `fastp/`：每个样本的 fastp 输出
+  - `<sample_id>.R1.fastp.fastq.gz`
+  - `<sample_id>.R2.fastp.fastq.gz`
+- `reports_fastp/<sample_id>/`：fastp 的 HTML/JSON 报告
+- `logs/`：SLURM 标准输出与错误日志
+- `meta/`：提交阶段生成的 `sample_ids.txt`
 
 ---
 
-## 参数说明
+## 脚本说明
+
+### 1) `01_submit_fastp_pipeline.sh`
+
+负责：参数解析、读取 `samples.tsv`、生成去重后的 `sample_id` 列表、提交 SLURM array。
+
+主要参数：
+
+- `-i, --input`：输入 TSV（必填）
+- `-o, --outdir`：输出目录（必填）
+- `-p, --partition`：SLURM 分区，默认 `cpu`
+- `-t, --threads`：每个样本 fastp 线程数，默认 `4`
+- `-m, --mem`：每个 array task 内存，默认 `16G`
+- `--max-parallel`：样本最大并发数，默认 `2`
+- `--force`：强制覆盖（由 worker 执行清理后重跑）
+- `--job-name`：SLURM 任务名
+- `--worker-script`：自定义 worker 路径
+- `-h, --help`：显示帮助
+
+提交时会使用：
 
 ```bash
-./run_pipeline.sh \
+--array=0-(n-1)%MAX_PARALLEL
+```
+
+实现“按样本并发 + 并发上限”。
+
+### 2) `02_run_fastp_pipeline_array.sh`
+
+由 `SLURM_ARRAY_TASK_ID` 决定当前样本，执行以下逻辑：
+
+1. 从 `sample_ids.txt` 取当前 `sample_id`
+2. 在 `samples.tsv` 中抓取该样本全部 R1/R2 分片
+3. 检查 R1/R2 数量一致
+4. 检查每个输入 FASTQ 文件存在且非空
+5. merge 分片（直接 `cat` 多个 `.fastq.gz`）
+6. 运行 `fastp` 生成 clean reads 与报告
+7. 已有非空输出时自动跳过；`FORCE=1` 时先删除旧结果再重跑
+
+---
+
+## 示例运行
+
+```bash
+bash 01_submit_fastp_pipeline.sh \
   -i samples.tsv \
-  -o /path/to/output \
-  -l /path/to/logs \
+  -o /data/project/run1 \
+  -p cpu2 \
   -t 4 \
-  [--dry-run] [--force] [--skip-done]
+  -m 32G \
+  --max-parallel 3 \
+  --force
 ```
 
-- `-i`：输入 TSV
-- `-o`：输出根目录
-- `-l`：日志目录（每个样本一个日志文件）
-- `-t`：线程数，默认 `4`
-- `--dry-run`：只打印命令，不执行
-- `--force`：强制重建 merged 与 fastp 结果
-- `--skip-done`：若某样本最终 `sample_id.R1.fastp.gz` 与 `sample_id.R2.fastp.gz` 已存在则跳过
+---
+
+## 运行逻辑（简要）
+
+- 提交阶段：
+  - 校验 TSV 表头
+  - 生成去重且顺序稳定的 `sample_ids.txt`
+  - 计算 array 区间并提交 job array
+- worker 阶段（每个样本一个 task）：
+  - 提取同一样本全部分片并校验
+  - 先 merge，再 fastp
+  - 可断点续跑；`--force` 可覆盖旧结果
 
 ---
 
-## 执行流程（简要）
+## 依赖
 
-1. 参数解析与基础检查（`fastp`、输入 TSV、线程数）。
-2. 校验 TSV 表头与每行三列格式。
-3. 校验每行输入 FASTQ 文件是否存在。
-4. 按 `sample_id` 与 TSV 顺序先合并同一样本的原始分片 FASTQ。
-5. 若 `merged/` 已有样本合并文件则跳过合并；否则先合并。
-6. 对样本级 R1/R2 执行一次 `fastp`（若 `fastq/` 已有结果则默认跳过）。
-7. 输出完成信息，日志写入 `-l` 指定目录。
-
----
-
-## 常见说明
-
-- 若样本仅有一对 FASTQ，也会先合并（等价于复制拼接）再进行 fastp。
-- 未开启 `--force` 时，不会覆盖已有 merged/fastp 结果，而是自动跳过对应步骤。
-- 每个样本会先生成 `merged/*.merged.fastq.gz`，再生成 `fastq/*.fastp.gz`。
-- pipeline 中断后可直接重跑：已有 merged 会跳过合并，已有 fastp 会跳过质控，从断点继续。
-
----
-
-## 在 SLURM/sbatch 中提交运行
-
-如果你在集群中通过 `sbatch` 提交任务，可以新建提交脚本（例如 `submit_pipeline.sbatch`）：
-
-```bash
-#!/bin/bash
-#SBATCH --job-name=survirus_array
-#SBATCH --partition=cpu1
-#SBATCH --cpus-per-task=1
-#SBATCH --mem=12G
-#SBATCH --output=logs/array_%A_%a.out
-#SBATCH --error=logs/array_%A_%a.err
-
-
-# 根据你的环境修改以下路径
-source /data/person/wup/public/software/miniconda3/bin/activate fastp
-
-TSV="/data/person/wup/liusy/wgs/scripts/paired-end-fastq/wes_pairs.tsv"
-OUT="/data/person/wup/public/liusy_files/sccc/preprocessed_bam/wes/fastq"
-LOG_DIR="/data/person/wup/liusy/wgs/scripts/paired-end-fastq/logs"
-THREADS=4
-
-/data/person/wup/liusy/wgs/scripts/paired-end-fastq/run_pipeline.sh -i "$TSV" -o "$OUT" -l "$LOG_DIR" -t "$THREADS" --skip-done
-```
-
-> 说明：
-> - 上面示例中的 `#SBATCH` 参数可按集群资源策略调整。
-> - `--cpus-per-task` 建议与 `-t` 线程数保持一致。
-> - `#SBATCH --output/--error` 是 SLURM 作业日志，`-l` 是 pipeline 的样本日志目录。
-
----
-
-
+- `bash`
+- `awk`, `sed`, `cat`, `mkdir`, `wc`
+- `sbatch`（SLURM）
+- `fastp`（worker 运行时会检查 PATH）
