@@ -46,6 +46,13 @@ Directory layout:
 USAGE
 }
 
+ensure_dir() {
+  local d="$1"
+  if [[ ! -d "$d" ]]; then
+    mkdir -p "$d"
+  fi
+}
+
 # Resolve absolute path for an existing file.
 abs_file() {
   local p="$1"
@@ -170,8 +177,12 @@ if [[ "$header" != $'sample_id\tinput_R1\tinput_R2' ]]; then
   exit 1
 fi
 
-# Create output directories (idempotent).
-mkdir -p "$OUTDIR/merged" "$OUTDIR/fastp" "$OUTDIR/reports_fastp" "$SUBMIT_CWD/logs" "$SUBMIT_CWD/meta"
+# Create output directories only when missing.
+ensure_dir "$OUTDIR/merged"
+ensure_dir "$OUTDIR/fastp"
+ensure_dir "$OUTDIR/reports_fastp"
+ensure_dir "$SUBMIT_CWD/logs"
+ensure_dir "$SUBMIT_CWD/meta"
 
 # Build unique sample list in stable first-seen order, skipping TSV header.
 sample_list="$SUBMIT_CWD/meta/sample_ids.txt"
