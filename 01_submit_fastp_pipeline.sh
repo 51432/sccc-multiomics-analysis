@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-set -euo pipefail
 
 # Submit sample-level FASTQ merge + fastp jobs as a SLURM array.
+# Note: intentionally not using `set -euo pipefail` per user requirement.
 #
 # Design goals:
 # 1) Parallelism at sample_id level (not FASTQ shard level).

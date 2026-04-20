@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #SBATCH --ntasks=1
-set -euo pipefail
+# Note: intentionally not using `set -euo pipefail` per user requirement.
 
 # Worker for one sample (selected by SLURM_ARRAY_TASK_ID):
 # 1) Parse all rows for this sample_id from INPUT_TSV.
