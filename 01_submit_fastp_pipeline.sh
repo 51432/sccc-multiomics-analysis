@@ -34,11 +34,13 @@ Optional:
       --worker-script   Path to worker script (default: 02_run_fastp_pipeline_array.sh in same dir)
   -h, --help            Show this help message
 
-Directory layout created under OUTDIR:
+Directory layout:
   OUTDIR/
     merged/
     fastp/
     reports_fastp/<sample_id>/
+
+  SUBMIT_CWD/
     logs/
     meta/
 USAGE
@@ -82,6 +84,7 @@ MAX_PARALLEL="2"
 FORCE=0
 JOB_NAME="fastp_pipeline"
 WORKER_SCRIPT=""
+SUBMIT_CWD="$(pwd -P)"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -168,10 +171,10 @@ if [[ "$header" != $'sample_id\tinput_R1\tinput_R2' ]]; then
 fi
 
 # Create output directories (idempotent).
-mkdir -p "$OUTDIR/merged" "$OUTDIR/fastp" "$OUTDIR/reports_fastp" "$OUTDIR/logs" "$OUTDIR/meta"
+mkdir -p "$OUTDIR/merged" "$OUTDIR/fastp" "$OUTDIR/reports_fastp" "$SUBMIT_CWD/logs" "$SUBMIT_CWD/meta"
 
 # Build unique sample list in stable first-seen order, skipping TSV header.
-sample_list="$OUTDIR/meta/sample_ids.txt"
+sample_list="$SUBMIT_CWD/meta/sample_ids.txt"
 awk -F '\t' '
   NR==1 { next }
   NF==0 { next }
@@ -202,6 +205,7 @@ echo "[INFO] Sample list      : $sample_list"
 echo "[INFO] Sample count     : $sample_count"
 echo "[INFO] Worker script    : $WORKER_SCRIPT"
 echo "[INFO] Output directory : $OUTDIR"
+echo "[INFO] Submit cwd       : $SUBMIT_CWD"
 echo "[INFO] Array spec       : $array_spec"
 echo "[INFO] Threads/sample   : $THREADS"
 echo "[INFO] Memory/task      : $MEM"
@@ -212,7 +216,7 @@ sbatch \
   --cpus-per-task "$THREADS" \
   --mem "$MEM" \
   --array "$array_spec" \
-  --output "$OUTDIR/logs/slurm_%x_%A_%a.out" \
-  --error "$OUTDIR/logs/slurm_%x_%A_%a.err" \
+  --output "$SUBMIT_CWD/logs/slurm_%x_%A_%a.out" \
+  --error "$SUBMIT_CWD/logs/slurm_%x_%A_%a.err" \
   --export "ALL,INPUT_TSV=$INPUT_TSV,SAMPLE_LIST=$sample_list,OUTDIR=$OUTDIR,THREADS=$THREADS,FORCE=$force_flag" \
   "$WORKER_SCRIPT"

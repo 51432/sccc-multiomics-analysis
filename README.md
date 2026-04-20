@@ -35,8 +35,10 @@ sample2	/data/xxx/sample2_part2.R1.fastq.gz	/data/xxx/sample2_part2.R2.fastq.gz
 OUTDIR/
 ├── merged/
 ├── fastp/
-├── reports_fastp/
-│   └── <sample_id>/
+└── reports_fastp/
+    └── <sample_id>/
+
+SUBMIT_CWD/
 ├── logs/
 └── meta/
 ```
@@ -48,8 +50,8 @@ OUTDIR/
   - `<sample_id>.R1.fastp.fastq.gz`
   - `<sample_id>.R2.fastp.fastq.gz`
 - `reports_fastp/<sample_id>/`：fastp 的 HTML/JSON 报告
-- `logs/`：SLURM 标准输出与错误日志
-- `meta/`：提交阶段生成的 `sample_ids.txt`
+- `logs/`：SLURM 标准输出与错误日志（生成在提交作业时的当前目录）
+- `meta/`：提交阶段生成的 `sample_ids.txt`（生成在提交作业时的当前目录）
 
 ---
 
