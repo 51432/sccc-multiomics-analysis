@@ -40,6 +40,13 @@ require_env "OUTDIR"
 require_env "THREADS"
 require_env "FORCE"
 
+ensure_dir() {
+  local d="$1"
+  if [[ ! -d "$d" ]]; then
+    mkdir -p "$d"
+  fi
+}
+
 if [[ -z "${SLURM_ARRAY_TASK_ID:-}" ]]; then
   echo "[ERROR] SLURM_ARRAY_TASK_ID is not set. This script must run as a job array task." >&2
   exit 1
@@ -70,8 +77,10 @@ if [[ ! -f "$SAMPLE_LIST" ]]; then
   exit 1
 fi
 
-# Create output directories if missing.
-mkdir -p "$OUTDIR/merged" "$OUTDIR/fastp" "$OUTDIR/reports_fastp"
+# Create output directories only when missing.
+ensure_dir "$OUTDIR/merged"
+ensure_dir "$OUTDIR/fastp"
+ensure_dir "$OUTDIR/reports_fastp"
 
 task_id="$SLURM_ARRAY_TASK_ID"
 sample_id="$(sed -n "$((task_id + 1))p" "$SAMPLE_LIST" || true)"
@@ -82,7 +91,7 @@ if [[ -z "$sample_id" ]]; then
 fi
 
 report_dir="$OUTDIR/reports_fastp/$sample_id"
-mkdir -p "$report_dir"
+ensure_dir "$report_dir"
 
 merged_r1="$OUTDIR/merged/${sample_id}.R1.merged.fastq.gz"
 merged_r2="$OUTDIR/merged/${sample_id}.R2.merged.fastq.gz"
