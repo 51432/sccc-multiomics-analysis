@@ -64,6 +64,20 @@ bash 01_submit_slurm_array.sh \
 - `--mode wes|wgs`：选择 WES 或 WGS 配置（interval、输出目录等）。
 - `--max-parallel 2`：Slurm array 的最大并发任务数（`%2`）。
 - `--check-pairs 1`：保留前半段兼容开关（默认 1）。
+- `--phase1-end-stage markdup|bqsr`：phase1 结束位置，默认 `bqsr`。
+
+#### A3. 只跑到 `markdup.bam`（不执行 BQSR）
+
+```bash
+bash 01_submit_slurm_array.sh \
+  --pipeline phase1 \
+  --samples input/samples.tsv \
+  --mode wes \
+  --max-parallel 2 \
+  --phase1-end-stage markdup
+```
+
+该模式下会执行：`check_pairs -> align_sort -> markdup`，并跳过 `run_bqsr`。
 
 ---
 

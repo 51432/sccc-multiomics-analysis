@@ -6,6 +6,7 @@ export MODE="${MODE:-wes}"                 # wes|wgs
 export PIPELINE_PHASE="${PIPELINE_PHASE:-phase1}"   # phase1|phase2
 export SAMPLES_TSV="${SAMPLES_TSV:-samples.tsv}"
 export SAMPLE_PAIRS_TSV="${SAMPLE_PAIRS_TSV:-sample_pairs.tsv}"
+export PHASE1_END_STAGE="${PHASE1_END_STAGE:-bqsr}" # markdup|bqsr
 
 # 兼容前半段
 export ENABLE_CHECK_PAIRS="${ENABLE_CHECK_PAIRS:-1}"   # 1/0
@@ -109,6 +110,14 @@ case "${PIPELINE_PHASE}" in
   phase1|phase2) ;;
   *)
     echo "[ERROR] PIPELINE_PHASE must be phase1|phase2, got=${PIPELINE_PHASE}" >&2
+    exit 1
+    ;;
+esac
+
+case "${PHASE1_END_STAGE}" in
+  markdup|bqsr) ;;
+  *)
+    echo "[ERROR] PHASE1_END_STAGE must be markdup|bqsr, got=${PHASE1_END_STAGE}" >&2
     exit 1
     ;;
 esac
