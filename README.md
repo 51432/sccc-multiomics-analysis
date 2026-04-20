@@ -31,13 +31,8 @@
 
 ```tsv
 sample_id	input_R1	input_R2
-```
-
-示例：
-
-```tsv
-SDE014	/data/project/fastq/TSDE014_R1.fastq.gz	/data/project/fastq/TSDE014_R2.fastq.gz
-SDE015	/data/project/fastq/TSDE015_R1.fastq.gz	/data/project/fastq/TSDE015_R2.fastq.gz
+SDE014	/data/project/fastq/TSDE014_R1.fastp.gz	/data/project/fastq/TSDE014_R2.fastp.gz
+SDE015	/data/project/fastq/TSDE015_R1.fastp.gz	/data/project/fastq/TSDE015_R2.fastp.gz
 ```
 
 约束（由 `validate_samples_tsv` 执行）：
@@ -46,6 +41,11 @@ SDE015	/data/project/fastq/TSDE015_R1.fastq.gz	/data/project/fastq/TSDE015_R2.fa
 3. `sample_id` 不可重复
 4. `input_R1` / `input_R2` 必须可读
 5. 至少包含 1 个样本
+
+####从 path/fastp 自动生成 `samples.tsv` 示例脚本：
+```bash
+printf "sample_id\tinput_R1\tinput_R2\n"; for f in /data/person/wup/public/liusy_files/sccc/preprocessed_bam/wgs/fastp/*.R1.fastp.gz; do sample=$(basename "$f" .R1.fastp.gz); printf "%s\t%s\t%s\n" "$sample" "$f" "${f/.R1.fastp.gz/.R2.fastp.gz}"; done > samples.tsv
+```
 
 #### A2. phase1 运行示例
 
