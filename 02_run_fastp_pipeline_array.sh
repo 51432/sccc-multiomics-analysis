@@ -95,8 +95,8 @@ ensure_dir "$report_dir"
 
 merged_r1="$OUTDIR/merged/${sample_id}.R1.merged.fastq.gz"
 merged_r2="$OUTDIR/merged/${sample_id}.R2.merged.fastq.gz"
-fastp_r1="$OUTDIR/fastp/${sample_id}.R1.fastp.fastq.gz"
-fastp_r2="$OUTDIR/fastp/${sample_id}.R2.fastp.fastq.gz"
+fastp_r1="$OUTDIR/fastp/${sample_id}.R1.fastp.gz"
+fastp_r2="$OUTDIR/fastp/${sample_id}.R2.fastp.gz"
 report_html="$report_dir/${sample_id}.fastp.html"
 report_json="$report_dir/${sample_id}.fastp.json"
 
