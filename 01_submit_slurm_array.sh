@@ -77,14 +77,23 @@ esac
 source "${ROOT}/config/00_config.sh"
 
 if [[ "${PIPELINE_PHASE}" == "phase1" ]]; then
-  num_samples="$(validate_samples_tsv "${SAMPLES_TSV}")"
+  num_samples="$(validate_samples_tsv "${SAMPLES_TSV}")" || exit 1
 else
-  num_samples="$(validate_sample_pairs_tsv "${SAMPLE_PAIRS_TSV}")"
+  num_samples="$(validate_sample_pairs_tsv "${SAMPLE_PAIRS_TSV}")" || exit 1
+fi
+
+if [[ -z "${num_samples}" || ! "${num_samples}" =~ ^[0-9]+$ || "${num_samples}" -le 0 ]]; then
+  echo "[ERROR] invalid sample count: ${num_samples}" >&2
+  exit 1
 fi
 
 array_end=$((num_samples - 1))
 
-log "pipeline=${PIPELINE_PHASE}, samples=${num_samples}, array=0-${array_end}%${MAX_PARALLEL}, mode=${MODE}, end_stage=${END_STAGE}"
+if [[ "${PIPELINE_PHASE}" == "phase1" ]]; then
+  log "pipeline=${PIPELINE_PHASE}, samples=${num_samples}, array=0-${array_end}%${MAX_PARALLEL}, mode=${MODE}, phase1_end_stage=${PHASE1_END_STAGE}"
+else
+  log "pipeline=${PIPELINE_PHASE}, samples=${num_samples}, array=0-${array_end}%${MAX_PARALLEL}, mode=${MODE}, end_stage=${END_STAGE}"
+fi
 
 sbatch \
   --export=ALL,PIPELINE_PHASE="${PIPELINE_PHASE}",SAMPLES_TSV="${SAMPLES_TSV}",SAMPLE_PAIRS_TSV="${SAMPLE_PAIRS_TSV}",MODE="${MODE}",ENABLE_CHECK_PAIRS="${ENABLE_CHECK_PAIRS}",END_STAGE="${END_STAGE}",ENABLE_CONTAMINATION="${ENABLE_CONTAMINATION}",ENABLE_ORIENTATION="${ENABLE_ORIENTATION}",ENABLE_ANNOTATION="${ENABLE_ANNOTATION}",PHASE1_END_STAGE="${PHASE1_END_STAGE}" \
