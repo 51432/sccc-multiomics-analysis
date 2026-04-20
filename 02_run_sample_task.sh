@@ -33,11 +33,17 @@ log "task_id=${task_id}, sample=${sample_id}, mode=${MODE}, pipeline=${PIPELINE_
 if [[ "${PIPELINE_PHASE}" == "phase1" ]]; then
   log "R1=${input_R1}"
   log "R2=${input_R2}"
+  log "phase1_end_stage=${PHASE1_END_STAGE}"
 
   run_check_pairs "${sample_id}" "${input_R1}" "${input_R2}"
   run_align_sort "${sample_id}"
   run_markduplicates "${sample_id}"
-  run_bqsr "${sample_id}"
+
+  if [[ "${PHASE1_END_STAGE}" == "bqsr" ]]; then
+    run_bqsr "${sample_id}"
+  else
+    log "[SKIP] bqsr disabled because phase1_end_stage=${PHASE1_END_STAGE}"
+  fi
 
   touch "${STATUS_DIR}/${sample_id}/phase1.done"
   log "[DONE] phase1 completed for sample=${sample_id}"

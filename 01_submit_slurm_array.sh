@@ -8,7 +8,7 @@ usage() {
   cat <<EOF2
 Usage:
   # phase1: fastq/fastp -> bqsr
-  $(basename "$0") --pipeline phase1 --samples samples.tsv --mode wes|wgs [--max-parallel 8] [--check-pairs 1|0]
+  $(basename "$0") --pipeline phase1 --samples samples.tsv --mode wes|wgs [--max-parallel 8] [--check-pairs 1|0] [--phase1-end-stage markdup|bqsr]
 
   # phase2: bqsr tumor-normal -> somatic
   $(basename "$0") --pipeline phase2 --pairs sample_pairs.tsv --mode wes|wgs [--max-parallel 8] \
@@ -28,6 +28,7 @@ END_STAGE_ARG="${END_STAGE}"
 ENABLE_CONTAMINATION_ARG="${ENABLE_CONTAMINATION}"
 ENABLE_ORIENTATION_ARG="${ENABLE_ORIENTATION}"
 ENABLE_ANNOTATION_ARG="${ENABLE_ANNOTATION}"
+PHASE1_END_STAGE_ARG="${PHASE1_END_STAGE}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -41,6 +42,7 @@ while [[ $# -gt 0 ]]; do
     --enable-contamination) ENABLE_CONTAMINATION_ARG="$2"; shift 2 ;;
     --enable-orientation) ENABLE_ORIENTATION_ARG="$2"; shift 2 ;;
     --enable-annotation) ENABLE_ANNOTATION_ARG="$2"; shift 2 ;;
+    --phase1-end-stage) PHASE1_END_STAGE_ARG="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "[ERROR] unknown arg: $1" >&2; usage; exit 1 ;;
   esac
@@ -54,6 +56,7 @@ export END_STAGE="${END_STAGE_ARG}"
 export ENABLE_CONTAMINATION="${ENABLE_CONTAMINATION_ARG}"
 export ENABLE_ORIENTATION="${ENABLE_ORIENTATION_ARG}"
 export ENABLE_ANNOTATION="${ENABLE_ANNOTATION_ARG}"
+export PHASE1_END_STAGE="${PHASE1_END_STAGE_ARG}"
 
 case "${PIPELINE_PHASE}" in
   phase1)
@@ -84,6 +87,6 @@ array_end=$((num_samples - 1))
 log "pipeline=${PIPELINE_PHASE}, samples=${num_samples}, array=0-${array_end}%${MAX_PARALLEL}, mode=${MODE}, end_stage=${END_STAGE}"
 
 sbatch \
-  --export=ALL,PIPELINE_PHASE="${PIPELINE_PHASE}",SAMPLES_TSV="${SAMPLES_TSV}",SAMPLE_PAIRS_TSV="${SAMPLE_PAIRS_TSV}",MODE="${MODE}",ENABLE_CHECK_PAIRS="${ENABLE_CHECK_PAIRS}",END_STAGE="${END_STAGE}",ENABLE_CONTAMINATION="${ENABLE_CONTAMINATION}",ENABLE_ORIENTATION="${ENABLE_ORIENTATION}",ENABLE_ANNOTATION="${ENABLE_ANNOTATION}" \
+  --export=ALL,PIPELINE_PHASE="${PIPELINE_PHASE}",SAMPLES_TSV="${SAMPLES_TSV}",SAMPLE_PAIRS_TSV="${SAMPLE_PAIRS_TSV}",MODE="${MODE}",ENABLE_CHECK_PAIRS="${ENABLE_CHECK_PAIRS}",END_STAGE="${END_STAGE}",ENABLE_CONTAMINATION="${ENABLE_CONTAMINATION}",ENABLE_ORIENTATION="${ENABLE_ORIENTATION}",ENABLE_ANNOTATION="${ENABLE_ANNOTATION}",PHASE1_END_STAGE="${PHASE1_END_STAGE}" \
   --array="0-${array_end}%${MAX_PARALLEL}" \
   "${ROOT}/run_sample_array.sbatch"
