@@ -14,23 +14,47 @@ validate_samples_tsv() {
 
   local expected=$'sample_id\tinput_R1\tinput_R2'
   local header
-  header="$(head -n 1 "$tsv")"
-  [[ "$header" == "$expected" ]] || {
-    echo "[ERROR] invalid header: $header" >&2
-    return 1
-  }
+  header="$(head -n 1 "$tsv" | tr -d '\r')"
 
-  awk -F'\t' '
-    NR==1{next}
-    NF!=3 {printf("[ERROR] line=%d NF=%d\n", NR, NF); err=1; next}
-    $1=="" || $2=="" || $3=="" {printf("[ERROR] line=%d empty field\n", NR); err=1}
-    { if(seen[$1]++) {printf("[ERROR] duplicate sample_id at line=%d: %s\n", NR, $1); err=1} }
-    END{ if(err) exit 1 }
-  ' "$tsv"
+  local has_header=0
+  local first_data_line=1
+  if [[ "$header" == "$expected" ]]; then
+    has_header=1
+    first_data_line=2
+  else
+    # 兼容无表头文件：第一行可直接是数据（TAB 或空白分隔）
+    if ! awk 'NR==1 { if (NF==3 && $1!="sample_id") exit 0; exit 1 }' "$tsv"; then
+      echo "[ERROR] invalid header: $header" >&2
+      echo "[ERROR] expected header: sample_id<TAB>input_R1<TAB>input_R2 (or a headerless 3-column file)" >&2
+      return 1
+    fi
+    echo "[WARN] header not found; treating first line as data" >&2
+  fi
+
+  awk -v start_line="$first_data_line" '
+    BEGIN { OFS="\t" }
+    NR < start_line { next }
+    {
+      if (NF != 3) { printf("[ERROR] line=%d NF=%d (expected 3 columns)\n", NR, NF); err=1; next }
+      if ($1=="" || $2=="" || $3=="") { printf("[ERROR] line=%d empty field\n", NR); err=1; next }
+      if (seen[$1]++) { printf("[ERROR] duplicate sample_id at line=%d: %s\n", NR, $1); err=1 }
+    }
+    END { if (err) exit 1 }
+  ' "$tsv" || return 1
 
   local n=0
-  while IFS=$'\t' read -r sid r1 r2; do
-    [[ "$sid" == "sample_id" ]] && continue
+  while read -r sid r1 r2 extra || [[ -n "${sid}${r1}${r2}${extra}" ]]; do
+    [[ -z "${sid}${r1}${r2}${extra}" ]] && continue
+
+    if [[ "$has_header" -eq 1 && "$sid" == "sample_id" && "$r1" == "input_R1" && "$r2" == "input_R2" && -z "$extra" ]]; then
+      continue
+    fi
+
+    if [[ -n "$extra" ]]; then
+      echo "[ERROR] sample=$sid expected exactly 3 columns" >&2
+      return 1
+    fi
+
     [[ -r "$r1" ]] || { echo "[ERROR] $sid R1 not readable: $r1" >&2; return 1; }
     [[ -r "$r2" ]] || { echo "[ERROR] $sid R2 not readable: $r2" >&2; return 1; }
     n=$((n+1))
