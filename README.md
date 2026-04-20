@@ -44,7 +44,13 @@ SDE015	/data/project/fastq/TSDE015_R1.fastp.gz	/data/project/fastq/TSDE015_R2.fa
 
 ####从 path/fastp 自动生成 `samples.tsv` 示例脚本：
 ```bash
-printf "sample_id\tinput_R1\tinput_R2\n"; for f in /data/person/wup/public/liusy_files/sccc/preprocessed_bam/wgs/fastp/*.R1.fastp.gz; do sample=$(basename "$f" .R1.fastp.gz); printf "%s\t%s\t%s\n" "$sample" "$f" "${f/.R1.fastp.gz/.R2.fastp.gz}"; done > samples.tsv
+(
+  printf "sample_id\tinput_R1\tinput_R2\n"
+  for f in /data/person/wup/public/liusy_files/sccc/preprocessed_bam/wgs/fastp/*.R1.fastp.gz; do
+    sample=$(basename "$f" .R1.fastp.gz)
+    printf "%s\t%s\t%s\n" "$sample" "$f" "${f/.R1.fastp.gz/.R2.fastp.gz}"
+  done
+) > samples.tsv
 ```
 
 #### A2. phase1 运行示例
