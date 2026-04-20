@@ -46,6 +46,30 @@ _get_bam_sample_name() {
   echo "${sm}"
 }
 
+_ensure_vcf_tbi() {
+  local vcf="$1"
+  local tbi="${vcf}.tbi"
+
+  [[ -r "${vcf}" ]] || {
+    echo "[ERROR] vcf not found for indexing: ${vcf}" >&2
+    return 1
+  }
+
+  if [[ -r "${tbi}" ]]; then
+    return 0
+  fi
+
+  log "[RUN] index vcf=${vcf}"
+  "${GATK_BIN}" --java-options "-Xmx4G -Djava.io.tmpdir=${TMP_DIR}" IndexFeatureFile \
+    -I "${vcf}" \
+    -O "${tbi}"
+
+  [[ -r "${tbi}" ]] || {
+    echo "[ERROR] failed to create vcf index: ${tbi}" >&2
+    return 1
+  }
+}
+
 run_mutect2() {
   local sid="$1"
   local tumor_bam="$2"
@@ -60,34 +84,168 @@ run_mutect2() {
   local out_vcf="${MUTECT2_DIR}/${sid}.unfiltered.vcf.gz"
   local out_stats="${MUTECT2_DIR}/${sid}.unfiltered.vcf.gz.stats"
   local out_f1r2="${F1R2_DIR}/${sid}.f1r2.tar.gz"
+  local f1r2_manifest="${F1R2_DIR}/${sid}.f1r2.inputs.list"
+
+  local scatter_count="${MUTECT2_SCATTER_COUNT:-1}"
+  local scatter_parallel="${MUTECT2_SCATTER_PARALLEL:-4}"
+  if ! [[ "${scatter_count}" =~ ^[1-9][0-9]*$ ]]; then
+    echo "[ERROR] MUTECT2_SCATTER_COUNT must be positive integer, got=${scatter_count}" >&2
+    return 1
+  fi
+  if ! [[ "${scatter_parallel}" =~ ^[1-9][0-9]*$ ]]; then
+    echo "[ERROR] MUTECT2_SCATTER_PARALLEL must be positive integer, got=${scatter_parallel}" >&2
+    return 1
+  fi
 
   log "[RUN] mutect2 sample=${sid}"
   log "[PATH] tumor_bam=${tumor_bam} (SM=${tumor_sm})"
   log "[PATH] normal_bam=${normal_bam} (SM=${normal_sm})"
   log "[PATH] intervals=${INTERVALS}"
   log "[PATH] gnomad=${GNOMAD_RESOURCE}"
+  if [[ "${scatter_parallel}" -gt "${scatter_count}" ]]; then
+    scatter_parallel="${scatter_count}"
+  fi
+  log "[CONF] mutect2_scatter_count=${scatter_count}, mutect2_scatter_parallel=${scatter_parallel}"
 
-  local cmd=(
-    "${GATK_BIN}" --java-options "-Xmx24G -XX:+UseParallelGC -Djava.io.tmpdir=${TMP_DIR}/${sid}"
-    Mutect2
-    -R "${REFERENCE}"
-    -L "${INTERVALS}"
-    -I "${tumor_bam}" -tumor "${tumor_sm}"
-    -I "${normal_bam}" -normal "${normal_sm}"
-    --germline-resource "${GNOMAD_RESOURCE}"
-    --f1r2-tar-gz "${out_f1r2}"
-    -O "${out_vcf}"
-  )
+  if [[ "${scatter_count}" -le 1 ]]; then
+    local cmd=(
+      "${GATK_BIN}" --java-options "-Xmx24G -XX:+UseParallelGC -Djava.io.tmpdir=${TMP_DIR}/${sid}"
+      Mutect2
+      -R "${REFERENCE}"
+      -L "${INTERVALS}"
+      -I "${tumor_bam}" -tumor "${tumor_sm}"
+      -I "${normal_bam}" -normal "${normal_sm}"
+      --germline-resource "${GNOMAD_RESOURCE}"
+      --f1r2-tar-gz "${out_f1r2}"
+      -O "${out_vcf}"
+    )
 
-  cmd+=(--panel-of-normals "${GATK_PON}")
-  log "[PATH] pon=${GATK_PON}"
+    cmd+=(--panel-of-normals "${GATK_PON}")
+    log "[PATH] pon=${GATK_PON}"
 
-  "${cmd[@]}"
+    "${cmd[@]}"
+    printf '%s\n' "${out_f1r2}" > "${f1r2_manifest}"
+  else
+    # 单样本 task 内做 scatter/gather，不引入额外 sbatch/pbs
+    local scatter_root="${TMP_DIR}/${sid}/mutect2_scatter"
+    local scatter_intervals_dir="${scatter_root}/intervals"
+    local shard_out_dir="${scatter_root}/shards"
+    local gather_dir="${scatter_root}/gather"
+    mkdir -p "${scatter_intervals_dir}" "${shard_out_dir}" "${gather_dir}"
+
+    log "[RUN] split intervals sample=${sid}, scatter_count=${scatter_count}"
+    "${GATK_BIN}" --java-options "-Xmx8G -Djava.io.tmpdir=${TMP_DIR}/${sid}" SplitIntervals \
+      -R "${REFERENCE}" \
+      -L "${INTERVALS}" \
+      --scatter-count "${scatter_count}" \
+      -O "${scatter_intervals_dir}"
+
+    local interval_files=()
+    while IFS= read -r itv; do
+      interval_files+=("${itv}")
+    done < <(find "${scatter_intervals_dir}" -maxdepth 1 -type f -name "*.interval_list" | sort)
+    [[ "${#interval_files[@]}" -gt 0 ]] || {
+      echo "[ERROR] no scatter interval shards generated in ${scatter_intervals_dir}" >&2
+      return 1
+    }
+
+    local shard_vcfs=()
+    local shard_stats=()
+    local shard_f1r2s=()
+    local shard_idx=0
+    local -a running_pids=()
+    for itv in "${interval_files[@]}"; do
+      shard_idx=$((shard_idx + 1))
+      local shard_tag
+      shard_tag="$(printf 'shard_%04d' "${shard_idx}")"
+      local shard_vcf="${shard_out_dir}/${sid}.${shard_tag}.unfiltered.vcf.gz"
+      local shard_stats_file="${shard_vcf}.stats"
+      local shard_f1r2="${shard_out_dir}/${sid}.${shard_tag}.f1r2.tar.gz"
+      local shard_tmp_dir="${scatter_root}/tmp/${shard_tag}"
+
+      mkdir -p "${shard_tmp_dir}"
+
+      log "[RUN] mutect2 ${shard_tag} sample=${sid} (bg)"
+      (
+        "${GATK_BIN}" --java-options "-Xmx24G -XX:+UseParallelGC -Djava.io.tmpdir=${shard_tmp_dir}" Mutect2 \
+          -R "${REFERENCE}" \
+          -L "${itv}" \
+          -I "${tumor_bam}" -tumor "${tumor_sm}" \
+          -I "${normal_bam}" -normal "${normal_sm}" \
+          --germline-resource "${GNOMAD_RESOURCE}" \
+          --panel-of-normals "${GATK_PON}" \
+          --f1r2-tar-gz "${shard_f1r2}" \
+          -O "${shard_vcf}"
+
+        [[ -r "${shard_vcf}" ]] || { echo "[ERROR] shard vcf not found: ${shard_vcf}" >&2; exit 1; }
+        [[ -r "${shard_stats_file}" ]] || { echo "[ERROR] shard stats not found: ${shard_stats_file}" >&2; exit 1; }
+        [[ -r "${shard_f1r2}" ]] || { echo "[ERROR] shard f1r2 not found: ${shard_f1r2}" >&2; exit 1; }
+      ) &
+      running_pids+=("$!")
+
+      shard_vcfs+=("${shard_vcf}")
+      shard_stats+=("${shard_stats_file}")
+      shard_f1r2s+=("${shard_f1r2}")
+
+      # 并发上限 = scatter_parallel：每攒满一批就等待完成
+      if [[ "${#running_pids[@]}" -ge "${scatter_parallel}" ]]; then
+        for pid in "${running_pids[@]}"; do
+          wait "${pid}" || {
+            echo "[ERROR] mutect2 shard failed, sample=${sid}, pid=${pid}" >&2
+            return 1
+          }
+        done
+        running_pids=()
+      fi
+    done
+
+    for pid in "${running_pids[@]}"; do
+      wait "${pid}" || {
+        echo "[ERROR] mutect2 shard failed, sample=${sid}, pid=${pid}" >&2
+        return 1
+      }
+    done
+
+    log "[RUN] gather mutect2 vcfs sample=${sid}"
+    local gather_vcf_cmd=(
+      "${GATK_BIN}" --java-options "-Xmx8G -Djava.io.tmpdir=${TMP_DIR}/${sid}"
+      GatherVcfs
+      -O "${out_vcf}"
+    )
+    for vcf in "${shard_vcfs[@]}"; do
+      gather_vcf_cmd+=(-I "${vcf}")
+    done
+    "${gather_vcf_cmd[@]}"
+
+    log "[RUN] gather mutect2 stats sample=${sid}"
+    local gather_stats_cmd=(
+      "${GATK_BIN}" --java-options "-Xmx8G -Djava.io.tmpdir=${TMP_DIR}/${sid}"
+      MergeMutectStats
+      -O "${out_stats}"
+    )
+    for st in "${shard_stats[@]}"; do
+      gather_stats_cmd+=(--stats "${st}")
+    done
+    "${gather_stats_cmd[@]}"
+
+    # F1R2 不直接拼 tar，改为聚合输入清单供 LearnReadOrientationModel 统一读取
+    : > "${f1r2_manifest}"
+    for f1r2 in "${shard_f1r2s[@]}"; do
+      printf '%s\n' "${f1r2}" >> "${f1r2_manifest}"
+    done
+    # 保留一个稳定路径，便于向后兼容检查逻辑
+    ln -sf "${shard_f1r2s[0]}" "${out_f1r2}"
+  fi
 
   [[ -r "${out_stats}" ]] || {
     echo "[ERROR] mutect2 stats not found: ${out_stats}" >&2
     return 1
   }
+  [[ -r "${out_vcf}" ]] || {
+    echo "[ERROR] mutect2 vcf not found: ${out_vcf}" >&2
+    return 1
+  }
+  _ensure_vcf_tbi "${out_vcf}"
 
   touch "${STATUS_DIR}/${sid}/10_mutect2.done"
   log "[DONE] mutect2 sample=${sid}"
@@ -137,18 +295,40 @@ run_orientation_model() {
   mkdir -p "${F1R2_DIR}" "${STATUS_DIR}/${sid}" "${TMP_DIR}/${sid}"
 
   local in_f1r2="${F1R2_DIR}/${sid}.f1r2.tar.gz"
+  local in_f1r2_manifest="${F1R2_DIR}/${sid}.f1r2.inputs.list"
   local out_priors="${F1R2_DIR}/${sid}.read-orientation-model.tar.gz"
 
-  [[ -r "${in_f1r2}" ]] || {
-    echo "[ERROR] f1r2 tar not found for orientation model: ${in_f1r2}" >&2
-    return 1
-  }
-
   log "[RUN] orientation sample=${sid}"
+  local cmd=(
+    "${GATK_BIN}" --java-options "-Xmx8G -Djava.io.tmpdir=${TMP_DIR}/${sid}"
+    LearnReadOrientationModel
+  )
 
-  "${GATK_BIN}" --java-options "-Xmx8G -Djava.io.tmpdir=${TMP_DIR}/${sid}" LearnReadOrientationModel \
-    -I "${in_f1r2}" \
-    -O "${out_priors}"
+  if [[ -r "${in_f1r2_manifest}" ]]; then
+    local cnt=0
+    while IFS= read -r f1r2; do
+      [[ -n "${f1r2}" ]] || continue
+      [[ -r "${f1r2}" ]] || {
+        echo "[ERROR] f1r2 shard tar not found for orientation model: ${f1r2}" >&2
+        return 1
+      }
+      cmd+=(-I "${f1r2}")
+      cnt=$((cnt + 1))
+    done < "${in_f1r2_manifest}"
+    [[ "${cnt}" -gt 0 ]] || {
+      echo "[ERROR] f1r2 manifest is empty: ${in_f1r2_manifest}" >&2
+      return 1
+    }
+  else
+    [[ -r "${in_f1r2}" ]] || {
+      echo "[ERROR] f1r2 tar not found for orientation model: ${in_f1r2}" >&2
+      return 1
+    }
+    cmd+=(-I "${in_f1r2}")
+  fi
+
+  cmd+=(-O "${out_priors}")
+  "${cmd[@]}"
 
   touch "${STATUS_DIR}/${sid}/30_orientation.done"
   log "[DONE] orientation sample=${sid}"
@@ -161,31 +341,44 @@ run_filter_mutect_calls() {
 
   local in_vcf="${MUTECT2_DIR}/${sid}.unfiltered.vcf.gz"
   local in_stats="${MUTECT2_DIR}/${sid}.unfiltered.vcf.gz.stats"
+  local contamination_table="${CONTAM_DIR}/${sid}.contamination.table"
+  local segmentation_table="${CONTAM_DIR}/${sid}.segments.table"
+  local ob_priors="${F1R2_DIR}/${sid}.read-orientation-model.tar.gz"
   local out_vcf="${FILTERED_DIR}/${sid}.filtered.vcf.gz"
+  local out_vcf_no_obpriors="${FILTERED_DIR}/${sid}.filtered.no-obpriors.vcf.gz"
 
   [[ -r "${in_vcf}" ]] || { echo "[ERROR] unfiltered vcf not found: ${in_vcf}" >&2; return 1; }
   [[ -r "${in_stats}" ]] || { echo "[ERROR] mutect2 stats not found: ${in_stats}" >&2; return 1; }
+  [[ -r "${contamination_table}" ]] || { echo "[ERROR] contamination table not found: ${contamination_table}" >&2; return 1; }
+  [[ -r "${segmentation_table}" ]] || { echo "[ERROR] tumor segmentation table not found: ${segmentation_table}" >&2; return 1; }
+  [[ -r "${ob_priors}" ]] || { echo "[ERROR] read orientation priors not found: ${ob_priors}" >&2; return 1; }
 
-  log "[RUN] filter sample=${sid}"
+  log "[RUN] filter(with ob-priors) sample=${sid}"
 
-  local cmd=(
+  local base_cmd=(
     "${GATK_BIN}" --java-options "-Xmx12G -Djava.io.tmpdir=${TMP_DIR}/${sid}"
     FilterMutectCalls
     -R "${REFERENCE}"
     -V "${in_vcf}"
     --stats "${in_stats}"
+    --contamination-table "${contamination_table}"
+    --tumor-segmentation "${segmentation_table}"
+  )
+
+  local cmd_with_ob=("${base_cmd[@]}")
+  cmd_with_ob+=(
+    --ob-priors "${ob_priors}"
     -O "${out_vcf}"
   )
 
-  if [[ "${ENABLE_CONTAMINATION}" == "1" && -r "${CONTAM_DIR}/${sid}.contamination.table" ]]; then
-    cmd+=(--contamination-table "${CONTAM_DIR}/${sid}.contamination.table")
-  fi
+  "${cmd_with_ob[@]}"
+  _ensure_vcf_tbi "${out_vcf}"
 
-  if [[ "${ENABLE_ORIENTATION}" == "1" && -r "${F1R2_DIR}/${sid}.read-orientation-model.tar.gz" ]]; then
-    cmd+=(--ob-priors "${F1R2_DIR}/${sid}.read-orientation-model.tar.gz")
-  fi
-
-  "${cmd[@]}"
+  log "[RUN] filter(no-obpriors) sample=${sid}"
+  local cmd_no_ob=("${base_cmd[@]}")
+  cmd_no_ob+=(-O "${out_vcf_no_obpriors}")
+  "${cmd_no_ob[@]}"
+  _ensure_vcf_tbi "${out_vcf_no_obpriors}"
 
   touch "${STATUS_DIR}/${sid}/40_filter.done"
   log "[DONE] filter sample=${sid}"

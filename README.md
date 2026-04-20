@@ -37,6 +37,37 @@ sample_id	tumor_bam	normal_bam
 SDE014	/data/person/wup/public/liusy_files/sccc/preprocessed_bam/wes/bqsr/TSDE014.bqsr.bam	/data/person/wup/public/liusy_files/sccc/preprocessed_bam/wes/bqsr/NSDE014.bqsr.bam
 ```
 
+从 BQSR BAM 自动生成 `pairs.tsv` 示例脚本：
+
+```bash
+#!/usr/bin/env bash
+
+bam_dir="/data/person/wup/public/liusy_files/sccc/preprocessed_bam/wes/bqsr"
+out_tsv="pair.tsv"
+
+echo -e "sample_id\ttumor_bam\tnormal_bam" > "${out_tsv}"
+
+find "${bam_dir}" -maxdepth 1 -type f -name "*.bqsr.bam" | sort | while read -r bam; do
+    base=$(basename "${bam}")
+
+    # 只处理 tumor 文件，避免重复写入
+    # 例如 TSDE014.bqsr.bam -> sample_id = SDE014
+    if [[ "${base}" =~ ^T(.+)\.bqsr\.bam$ ]]; then
+        sample_id="${BASH_REMATCH[1]}"
+        tumor_bam="${bam}"
+        normal_bam="${bam_dir}/N${sample_id}.bqsr.bam"
+
+        if [[ -f "${normal_bam}" ]]; then
+            echo -e "${sample_id}\t${tumor_bam}\t${normal_bam}" >> "${out_tsv}"
+        else
+            echo "[WARN] normal bam not found for sample_id=${sample_id}: ${normal_bam}" >&2
+        fi
+    fi
+done
+
+echo "Done. Output written to ${out_tsv}"
+```
+
 已实现严格校验：
 
 1. 表头严格匹配
@@ -68,6 +99,9 @@ SDE014	/data/person/wup/public/liusy_files/sccc/preprocessed_bam/wes/bqsr/TSDE01
 - **不实现** PoN 构建、不实现 HaplotypeCaller Germline、不恢复 PBS/qsub。
 - `PoN`（`${GATK_PON}`）默认启用并作为 Mutect2 固定输入。
 - `--germline-resource ${GNOMAD_RESOURCE}` 默认保留。
+- `FilterMutectCalls` 会输出两个版本：
+  - `${sample_id}.filtered.vcf.gz`（默认包含 `--contamination-table`、`--tumor-segmentation`、`--ob-priors`）
+  - `${sample_id}.filtered.no-obpriors.vcf.gz`（不带 `--ob-priors`）
 
 ---
 
@@ -86,6 +120,8 @@ SDE014	/data/person/wup/public/liusy_files/sccc/preprocessed_bam/wes/bqsr/TSDE01
 - `--enable-contamination 1|0`
 - `--enable-orientation 1|0`
 - `--enable-annotation 1|0`
+- `MUTECT2_SCATTER_COUNT`（环境变量，默认 `1`；`>1` 时按 intervals 分片）
+- `MUTECT2_SCATTER_PARALLEL`（环境变量，默认 `4`；单样本 task 内 shard 最大并发数，且不超过 `MUTECT2_SCATTER_COUNT`）
 
 默认值见 `config/00_config.sh`。
 
@@ -102,6 +138,9 @@ bash 01_submit_slurm_array.sh --pipeline phase1 --samples input/samples.tsv --mo
 ## 5.2 phase2：从 BQSR BAM 到 filtered VCF
 
 ```bash
+export MUTECT2_SCATTER_COUNT=1
+export MUTECT2_SCATTER_PARALLEL=1
+
 bash 01_submit_slurm_array.sh \
   --pipeline phase2 \
   --pairs input/sample_pairs.tsv \
@@ -122,6 +161,28 @@ bash 01_submit_slurm_array.sh \
   --end-stage mutect2
 ```
 
+## 5.4 最小运行示例（WES 单样本对，scatter_count=10）
+
+```bash
+export MUTECT2_SCATTER_COUNT=10
+export MUTECT2_SCATTER_PARALLEL=4
+
+bash 01_submit_slurm_array.sh \
+  --pipeline phase2 \
+  --pairs input/sample_pairs.tsv \
+  --mode wes \
+  --max-parallel 1 \
+  --end-stage filter \
+  --enable-contamination 1 \
+  --enable-orientation 1 \
+  --enable-annotation 0
+```
+
+说明：
+- `Mutect2` 在单个 sample task 内做 `SplitIntervals -> shard Mutect2（后台并行） -> GatherVcfs/MergeMutectStats/F1R2聚合输入`。
+- gather 完成后再继续 `GetPileupSummaries`、`CalculateContamination`、`LearnReadOrientationModel`、`FilterMutectCalls`。
+- WES 建议先从 `MUTECT2_SCATTER_COUNT=10`、`MUTECT2_SCATTER_PARALLEL=4` 起步，再按机器 CPU/内存调整。
+
 ---
 
 ## 6. phase2 输出路径（已复用 config）
@@ -141,3 +202,14 @@ bash 01_submit_slurm_array.sh \
 - 保留前半段结构，不推翻已跑通流程。
 - 后半段采用最小可维护扩展：新增函数集中在 `lib/steps_somatic.sh`。
 - 后续若需要深化 annotation/analysis，可在当前接口基础上继续扩展。
+
+---
+
+## 8. 服务器下载与解压
+
+在服务器上可直接执行以下命令下载并解压当前分支代码包：
+
+```bash
+wget "https://github.com/51432/sccc-multiomics-analysis/archive/refs/heads/codex/update-run_filter_mutect_calls-output-logic.zip"
+unzip update-run_filter_mutect_calls-output-logic.zip -d ./
+```
