@@ -77,3 +77,49 @@ install.packages("Matrix")
 4. 合并所有样本矩阵，缺失值补 0。
 
 最终得到 single-cell/single-nucleus 聚合后的 bulk-like count data。
+
+
+---
+
+## 6. pseudo-bulk 分布校正到 bulk（quantile matching + ComBat）
+
+当你已经得到 `allcell_pseudobulk_counts.tsv` 后，可继续运行：
+
+```bash
+cd figure_1
+unset R_HOME
+Rscript match_pseudobulk_to_bulk_distribution.R   /path/to/bulk_counts.csv   /path/to/allcell_pseudobulk_counts.tsv   /path/to/output_dir   22:40
+```
+
+参数说明：
+
+1. `bulk_counts.csv`：bulk RNA count 矩阵（第一列为 gene）
+2. `allcell_pseudobulk_counts.tsv`：前一步生成的 pseudo-bulk count 矩阵
+3. `output_dir`：输出目录
+4. `22:40`：可选，指定 bulk 矩阵使用哪些列（示例表示第 22 到 40 列）；不传则默认使用 bulk 全部样本列
+
+也支持环境变量：
+
+- `BULK_FILE`
+- `PSEUDO_FILE`
+- `OUTDIR`
+- `BULK_COLS`
+
+该脚本会：
+
+1. bulk 与 pseudo 取共同基因；
+2. 分别计算 TMM-normalized logCPM；
+3. 对 pseudo 做 sample-wise quantile matching（向 bulk 平均分布对齐）；
+4. 合并 bulk + matched pseudo，并用 ComBat 进行 batch correction；
+5. 输出 density/PCA QC 图。
+
+新增输出包括：
+
+- `bulk_logCPM.tsv`
+- `pseudobulk_logCPM.tsv`
+- `pseudobulk_bulk_like_quantile_matched.tsv`
+- `combined_bulk_original_plus_pseudobulk_quantile_matched.tsv`
+- `density_before_matching.pdf`
+- `density_after_quantile_matching.pdf`
+- `PCA_before_matching.pdf`
+- `PCA_after_quantile_matching.pdf`
