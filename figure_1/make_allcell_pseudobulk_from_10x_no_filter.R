@@ -1,20 +1,71 @@
 suppressPackageStartupMessages({
-  library(Seurat)
   library(Matrix)
-  library(data.table)
-  library(dplyr)
 })
 
 manifest_file <- "tenx_manifest.tsv"
 outdir <- "pseudobulk_allcell_out"
 dir.create(outdir, showWarnings = FALSE, recursive = TRUE)
 
-manifest <- fread(manifest_file, sep = "\t", header = TRUE, data.table = FALSE)
+manifest <- read.delim(
+  manifest_file,
+  header = TRUE,
+  sep = "\t",
+  stringsAsFactors = FALSE,
+  check.names = FALSE
+)
 
-required_cols <- c("sample_id", "path")
-missing_cols <- setdiff(required_cols, colnames(manifest))
-if (length(missing_cols) > 0) {
-  stop("manifest 缺少列: ", paste(missing_cols, collapse = ", "))
+if (!all(c("sample_id", "path") %in% colnames(manifest))) {
+  stop("tenx_manifest.tsv 必须包含 sample_id 和 path 两列")
+}
+
+read_10x_counts <- function(path) {
+  matrix_file <- file.path(path, "matrix.mtx.gz")
+  feature_file <- file.path(path, "features.tsv.gz")
+  barcode_file <- file.path(path, "barcodes.tsv.gz")
+
+  if (!file.exists(feature_file)) {
+    feature_file <- file.path(path, "genes.tsv.gz")
+  }
+
+  if (!file.exists(matrix_file)) {
+    stop("找不到 matrix.mtx.gz: ", matrix_file)
+  }
+  if (!file.exists(feature_file)) {
+    stop("找不到 features.tsv.gz 或 genes.tsv.gz: ", path)
+  }
+  if (!file.exists(barcode_file)) {
+    stop("找不到 barcodes.tsv.gz: ", barcode_file)
+  }
+
+  message("Reading matrix: ", matrix_file)
+
+  mat <- readMM(gzfile(matrix_file))
+
+  features <- read.delim(
+    gzfile(feature_file),
+    header = FALSE,
+    stringsAsFactors = FALSE
+  )
+
+  barcodes <- read.delim(
+    gzfile(barcode_file),
+    header = FALSE,
+    stringsAsFactors = FALSE
+  )
+
+  if (ncol(features) >= 2) {
+    gene_names <- features[[2]]
+  } else {
+    gene_names <- features[[1]]
+  }
+
+  rownames(mat) <- make.unique(gene_names)
+  colnames(mat) <- barcodes[[1]]
+
+  list(
+    counts = mat,
+    gene_symbols = gene_names
+  )
 }
 
 pb_list <- list()
@@ -22,37 +73,31 @@ qc_list <- list()
 
 for (i in seq_len(nrow(manifest))) {
   sample_id <- manifest$sample_id[i]
-  tenx_path <- manifest$path[i]
+  path <- manifest$path[i]
 
-  message("Reading sample: ", sample_id)
-  message("Path: ", tenx_path)
+  message("======================================")
+  message("Processing sample: ", sample_id)
+  message("Path: ", path)
 
-  counts <- Read10X(
-    data.dir = tenx_path,
-    gene.column = 2,
-    unique.features = TRUE
-  )
+  x <- read_10x_counts(path)
+  counts <- x$counts
+  gene_symbols <- x$gene_symbols
 
-  # 如果是多 assay 10X 数据，只取 Gene Expression
-  if (is.list(counts)) {
-    if ("Gene Expression" %in% names(counts)) {
-      counts <- counts[["Gene Expression"]]
-    } else {
-      counts <- counts[[1]]
-    }
-  }
-
-  # 基础 QC 指标，但不强制过滤，保留所有 cells/nuclei
   nCount <- Matrix::colSums(counts)
   nFeature <- Matrix::colSums(counts > 0)
 
-  # all-cell pseudo-bulk: 每个基因在该样本所有细胞/核中求和
   pb_counts <- Matrix::rowSums(counts)
 
   pb_df <- data.frame(
-    gene = names(pb_counts),
+    gene = gene_symbols,
     count = as.numeric(pb_counts),
     stringsAsFactors = FALSE
+  )
+
+  pb_df <- aggregate(
+    count ~ gene,
+    data = pb_df,
+    FUN = sum
   )
 
   colnames(pb_df)[2] <- sample_id
@@ -71,14 +116,13 @@ for (i in seq_len(nrow(manifest))) {
   )
 }
 
-# 合并所有样本的 pseudo-bulk counts
 pseudobulk_counts <- Reduce(function(x, y) {
-  full_join(x, y, by = "gene")
+  merge(x, y, by = "gene", all = TRUE)
 }, pb_list)
 
 pseudobulk_counts[is.na(pseudobulk_counts)] <- 0
 
-qc_df <- bind_rows(qc_list)
+qc_df <- do.call(rbind, qc_list)
 
 write.table(
   pseudobulk_counts,
@@ -96,6 +140,7 @@ write.table(
   row.names = FALSE
 )
 
+message("======================================")
 message("Done.")
 message("Output count matrix: ", file.path(outdir, "allcell_pseudobulk_counts.tsv"))
 message("Output QC table: ", file.path(outdir, "allcell_pseudobulk_qc.tsv"))
